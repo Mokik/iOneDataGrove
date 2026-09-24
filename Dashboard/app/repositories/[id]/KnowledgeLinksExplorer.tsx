@@ -76,11 +76,12 @@ function percentageLabel(count: number, total: number) {
 }
 
 
-export function KnowledgeLinksExplorer({ repositoryId, focus, path }: { repositoryId: number; focus: EntityFocus | null; path: string | null }) {
+export function KnowledgeLinksExplorer({ repositoryId, focus, path, initialRelation = "all", initialReviewOnly = false }: { repositoryId: number; focus: EntityFocus | null; path: string | null; initialRelation?: string; initialReviewOnly?: boolean }) {
   const [catalog, setCatalog] = useState<LinkCatalog | null>(null);
-  const [relation, setRelation] = useState("all");
+  const [relation, setRelation] = useState(initialRelation);
   const [evidence, setEvidence] = useState("all");
   const [entityType, setEntityType] = useState("all");
+  const [reviewOnly, setReviewOnly] = useState(initialReviewOnly);
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -99,6 +100,7 @@ export function KnowledgeLinksExplorer({ repositoryId, focus, path }: { reposito
         if (relation !== "all") parameters.set("relation", relation);
         if (evidence !== "all") parameters.set("evidence", evidence);
         if (entityType !== "all") parameters.set("entityType", entityType);
+        if (reviewOnly) parameters.set("review", "true");
         const response = await fetch(
           `http://127.0.0.1:5088/api/repositories/${repositoryId}/links?${parameters}`,
           { cache: "no-store", signal: controller.signal },
@@ -117,7 +119,7 @@ export function KnowledgeLinksExplorer({ repositoryId, focus, path }: { reposito
 
     void load();
     return () => controller.abort();
-  }, [repositoryId, submittedQuery, relation, evidence, entityType, page, focus, path]);
+  }, [repositoryId, submittedQuery, relation, evidence, entityType, reviewOnly, page, focus, path]);
 
   function submitSearch(event: React.FormEvent) {
     event.preventDefault();
@@ -131,6 +133,7 @@ export function KnowledgeLinksExplorer({ repositoryId, focus, path }: { reposito
     setRelation("all");
     setEvidence("all");
     setEntityType("all");
+    setReviewOnly(false);
     setPage(1);
   }
 
@@ -164,7 +167,7 @@ export function KnowledgeLinksExplorer({ repositoryId, focus, path }: { reposito
             type="button"
             key={metric.key}
             className={relation === metric.key ? "active" : ""}
-            onClick={() => { setRelation(metric.key); setPage(1); }}
+            onClick={() => { setRelation(metric.key); setReviewOnly(false); setPage(1); }}
           >
             <span>{metric.label}</span>
             <strong>{numberFormatter.format(count)}</strong>
@@ -178,15 +181,15 @@ export function KnowledgeLinksExplorer({ repositoryId, focus, path }: { reposito
           <strong>{numberFormatter.format(catalog.reviewLinks)} riferimenti testuali da verificare</strong>
           <span>I riferimenti standard dei merge commit sono già confermati e non compaiono in questo conteggio.</span>
         </div>
-        <button type="button" onClick={() => { setRelation("references"); setEvidence("text_reference"); setPage(1); }}>Mostra riferimenti</button>
+        <button type="button" onClick={() => { setRelation("references"); setEvidence("text_reference"); setReviewOnly(true); setPage(1); }}>Mostra solo questi</button>
       </div>}
 
       <div className="knowledge-link-toolbar">
         <div className="knowledge-link-facets">
-          <button type="button" className={relation === "all" ? "active" : ""} onClick={() => { setRelation("all"); setPage(1); }}>
+          <button type="button" className={relation === "all" ? "active" : ""} onClick={() => { setRelation("all"); setReviewOnly(false); setPage(1); }}>
             Tutti <strong>{numberFormatter.format(catalog.totalLinks)}</strong>
           </button>
-          {catalog.facets.map(facet => <button type="button" key={facet.relationType} className={relation === facet.relationType ? "active" : ""} onClick={() => { setRelation(facet.relationType); setPage(1); }}>
+          {catalog.facets.map(facet => <button type="button" key={facet.relationType} className={relation === facet.relationType ? "active" : ""} onClick={() => { setRelation(facet.relationType); setReviewOnly(false); setPage(1); }}>
             {relationLabels[facet.relationType] ?? facet.relationType} <strong>{numberFormatter.format(facet.count)}</strong>
           </button>)}
         </div>
@@ -206,11 +209,12 @@ export function KnowledgeLinksExplorer({ repositoryId, focus, path }: { reposito
           <option value="structural_index">Indice C#</option>
         </select>
         <button type="submit">Cerca</button>
-        {(submittedQuery || relation !== "all" || evidence !== "all" || entityType !== "all") && <button className="source-clear" type="button" onClick={resetFilters}>Azzera</button>}
+        {(submittedQuery || relation !== "all" || evidence !== "all" || entityType !== "all" || reviewOnly) && <button className="source-clear" type="button" onClick={resetFilters}>Azzera</button>}
       </form>
 
       <div className="knowledge-result-summary">
         <span>{numberFormatter.format(catalog.matchedLinks)} collegamenti trovati</span>
+        {reviewOnly && <small>Solo riferimenti da verificare</small>}
         {submittedQuery && <small>Ricerca: “{submittedQuery}”</small>}
       </div>
 

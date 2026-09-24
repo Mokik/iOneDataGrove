@@ -77,6 +77,29 @@ button, input { font: inherit; }
 .health-strip small { grid-column: 1 / -1; color: #899297; font-size: 9px; }
 .health-strip .danger-value { color: #a84d38; }
 
+.knowledge-overview-panel { margin-top: 28px; scroll-margin-top: 20px; border: 1px solid var(--line); background: var(--panel); }
+.knowledge-overview-panel.has-review-items { border-top: 3px solid #c69a45; }
+.knowledge-overview-heading { gap: 28px; }
+.knowledge-overview-total { flex: 0 0 auto; min-width: 135px; padding-left: 24px; border-left: 1px solid var(--line); text-align: right; }
+.knowledge-overview-total strong, .knowledge-overview-total small { display: block; }
+.knowledge-overview-total strong { color: #76551d; font: 500 28px Georgia, serif; }
+.knowledge-overview-total small { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.knowledge-overview-list { max-height: 520px; overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.knowledge-overview-list > a { min-width: 0; padding: 17px 22px; border-bottom: 1px solid var(--line); color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 20px; text-decoration: none; }
+.knowledge-overview-list > a:nth-child(odd) { border-right: 1px solid var(--line); }
+.knowledge-overview-list > a:hover { background: #fff9e9; }
+.knowledge-overview-list span, .knowledge-overview-list strong, .knowledge-overview-list small { display: block; }
+.knowledge-overview-list > a > span:first-child { min-width: 0; }
+.knowledge-overview-list > a > span:first-child strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.knowledge-overview-list small { margin-top: 4px; color: var(--muted); font-size: 8px; }
+.knowledge-overview-count { flex: 0 0 auto; text-align: right; }
+.knowledge-overview-count strong { color: #76551d; font: 500 18px Georgia, serif; }
+.knowledge-overview-count small { color: #806f50; }
+.knowledge-overview-empty { min-height: 108px; padding: 24px; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 10px; text-align: center; }
+.knowledge-overview-empty strong, .knowledge-overview-empty span { display: block; }
+.knowledge-overview-empty.knowledge-overview-ok { flex-direction: column; background: #f5f9f4; color: #55705c; }
+.knowledge-overview-empty.knowledge-overview-ok strong { color: #397047; font-size: 12px; }
+
 .incident-panel { margin-top: 28px; border: 1px solid #e4b7aa; border-left: 4px solid #bd684f; background: #fffaf7; }
 .incident-heading { min-height: 82px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid #eed4cc; }
 .incident-heading h3 { margin: 0; font: 600 19px Georgia, serif; }
@@ -208,6 +231,8 @@ td code { padding: 4px 6px; background: #edf0ec; color: #526159; font: 10px Cons
   .metrics-grid.metrics-four .metric:nth-child(2) { border-right: 0; }
   .health-strip { grid-template-columns: repeat(2, 1fr); }
   .health-strip article:nth-child(2) { border-right: 0; }
+  .knowledge-overview-list { grid-template-columns: 1fr; }
+  .knowledge-overview-list > a:nth-child(odd) { border-right: 0; }
   .incident-list { grid-template-columns: 1fr; }
   .incident-list article { border-right: 0; }
   .activity-heading { align-items: flex-start; flex-direction: column; }
@@ -233,6 +258,8 @@ td code { padding: 4px 6px; background: #edf0ec; color: #526159; font: 10px Cons
   .health-strip { grid-template-columns: 1fr; }
   .health-strip article, .health-strip article:nth-child(2) { border-right: 0; border-bottom: 1px solid var(--line); }
   .health-strip article:last-child { border-bottom: 0; }
+  .knowledge-overview-heading { align-items: flex-start; flex-direction: column; }
+  .knowledge-overview-total { width: 100%; padding: 14px 0 0; border-left: 0; border-top: 1px solid var(--line); text-align: left; }
   .incident-heading { align-items: flex-start; flex-direction: column; }
   .hero-meta { display: grid; gap: 7px; }
   .tracking-row { grid-template-columns: 1fr; }

@@ -41,11 +41,20 @@ type SyncRun = {
   errorMessage: string | null;
 };
 
+type KnowledgeReviewRepository = {
+  repositoryId: number; repositoryFullName: string; reviewLinks: number;
+};
+
+type KnowledgeQuality = {
+  reviewLinks: number; repositoriesWithReviewLinks: number;
+  repositories: KnowledgeReviewRepository[];
+};
+
 type DashboardData = {
   generatedAt: string;
   status: "healthy" | "running" | "attention" | "empty";
   trackingStatus: "active" | "running" | "attention" | "not_initialized";
-  latestDataSync: string | null; totals: Totals; syncOverview?: SyncOverview;
+  latestDataSync: string | null; totals: Totals; syncOverview?: SyncOverview; knowledgeQuality: KnowledgeQuality;
   repositories: Repository[]; syncStates: SyncState[]; recentRuns: SyncRun[];
 };
 
@@ -309,6 +318,7 @@ export function DashboardClient() {
     : 0;
   const repositoryManagementLocked = overview.runningResources > 0;
   const attentionItemCount = overview.failedResources + overview.staleResources + overview.untrackedRepositories;
+  const knowledgeQuality = data?.knowledgeQuality;
 
   return (
     <main className="app-shell">
@@ -320,6 +330,7 @@ export function DashboardClient() {
         <nav className="nav-list" aria-label="Navigazione principale">
           <a className="nav-item active" href="#panoramica">Panoramica</a>
           <a className="nav-item" href="#sorgenti">Sorgenti</a>
+          <a className="nav-item" href="#qualita">Qualità</a>
           <a className="nav-item" href="#repository">Repository</a>
           <a className="nav-item" href="#attivita">Attività</a>
         </nav>
@@ -364,6 +375,21 @@ export function DashboardClient() {
             <article><span>Da verificare</span><strong className={attentionItemCount ? "danger-value" : ""}>{formatNumber(attentionItemCount)}</strong><small>errori, dati non recenti o non tracciati</small></article>
             <article><span>In esecuzione</span><strong>{formatNumber(overview.runningResources)}</strong><small>risorse attive ora</small></article>
             <article><span>Esecuzioni</span><strong>{formatNumber(overview.totalRuns)}</strong><small>nello storico</small></article>
+          </section>
+
+          <section className={`knowledge-overview-panel${knowledgeQuality?.reviewLinks ? " has-review-items" : ""}`} id="qualita" aria-label="Qualità dei collegamenti">
+            <div className="panel-heading knowledge-overview-heading">
+              <div><p className="section-kicker">QUALITÀ COLLEGAMENTI</p><h3>Riferimenti testuali da verificare</h3><p className="panel-description">Citazioni prive di una formula esplicita di chiusura, raggruppate per repository. I normali merge commit sono già esclusi.</p></div>
+              <div className="knowledge-overview-total"><strong>{formatNumber(knowledgeQuality?.reviewLinks)}</strong><small>in {formatNumber(knowledgeQuality?.repositoriesWithReviewLinks)} repository</small></div>
+            </div>
+            {!data && <div className="knowledge-overview-empty"><span className="source-loader" /><span>Controllo dei collegamenti…</span></div>}
+            {data && knowledgeQuality && knowledgeQuality.reviewLinks === 0 && <div className="knowledge-overview-empty knowledge-overview-ok"><strong>Nessun riferimento richiede revisione</strong><span>I collegamenti testuali riconosciuti risultano classificati correttamente.</span></div>}
+            {knowledgeQuality && knowledgeQuality.repositories.length > 0 && <div className="knowledge-overview-list">
+              {knowledgeQuality.repositories.map(repository => <a key={repository.repositoryId} href={`/repositories/${repository.repositoryId}#tab=links&relation=references&review=required`}>
+                <span><strong>{repository.repositoryFullName}</strong><small>Apri direttamente i riferimenti da controllare</small></span>
+                <span className="knowledge-overview-count"><strong>{formatNumber(repository.reviewLinks)}</strong><small>da verificare →</small></span>
+              </a>)}
+            </div>}
           </section>
 
           {failedRuns.length > 0 && (

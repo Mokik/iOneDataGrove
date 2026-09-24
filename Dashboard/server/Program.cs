@@ -149,6 +149,51 @@ app.MapGet("/api/dashboard", async (IOneDataGroveDbContext db, CancellationToken
                 item.Commits.Count))
             .ToListAsync(ct);
 
+        var reviewRepositories = new List<KnowledgeReviewRepositoryDto>();
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            await using var reviewCommand = db.Database.GetDbConnection().CreateCommand();
+            reviewCommand.CommandText = """
+                SELECT
+                    repository.id,
+                    repository.full_name,
+                    COUNT(*)::integer
+                FROM knowledge.entity_links AS link
+                INNER JOIN github.repositories AS repository
+                    ON repository.id = link.repository_id
+                LEFT JOIN github.commits AS source_commit
+                    ON link.source_type = 'commit' AND source_commit.id = link.source_id
+                WHERE link.relation_type = 'references'
+                  AND link.evidence_type = 'text_reference'
+                  AND NOT repository.is_excluded
+                  AND NOT
+                  (
+                      link.source_type = 'commit'
+                      AND source_commit.message ~* '^[[:space:]]*Merge pull request #[1-9][0-9]*'
+                  )
+                GROUP BY repository.id, repository.full_name
+                ORDER BY COUNT(*) DESC, repository.full_name;
+                """;
+            await using var reviewReader = await reviewCommand.ExecuteReaderAsync(ct);
+            while (await reviewReader.ReadAsync(ct))
+            {
+                reviewRepositories.Add(new KnowledgeReviewRepositoryDto(
+                    reviewReader.GetInt64(0),
+                    reviewReader.GetString(1),
+                    reviewReader.GetInt32(2)));
+            }
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
+
+        var knowledgeQuality = new KnowledgeQualitySummaryDto(
+            reviewRepositories.Sum(item => item.ReviewLinks),
+            reviewRepositories.Count,
+            reviewRepositories);
+
         var activeRepositoryIds = repositories
             .Where(item => item.IsSyncEnabled && !item.IsExcluded)
             .Select(item => item.Id)
@@ -215,6 +260,7 @@ app.MapGet("/api/dashboard", async (IOneDataGroveDbContext db, CancellationToken
                 pullRequestFileCount + commitFileCount,
                 activeSourceFileCount),
             syncOverview,
+            knowledgeQuality,
             repositories,
             syncStates,
             recentRuns));
@@ -1210,6 +1256,7 @@ app.MapGet("/api/repositories/{id:long}/links", async (
     string? focusType,
     long? focusId,
     string? path,
+    bool? review,
     int? page,
     int? pageSize,
     IOneDataGroveDbContext db,
@@ -1431,6 +1478,7 @@ app.MapGet("/api/repositories/{id:long}/links", async (
                     requires_review
                 FROM resolved
                 WHERE (CAST(@relation AS text) IS NULL OR relation_type = @relation)
+                  AND (NOT @review_only OR requires_review)
                   AND (CAST(@evidence AS text) IS NULL OR evidence_type = @evidence)
                   AND
                   (
@@ -1468,6 +1516,7 @@ app.MapGet("/api/repositories/{id:long}/links", async (
                 AddDbParameter(linksCommand, "path", path);
                 AddDbParameter(linksCommand, "repository_id", id);
                 AddDbParameter(linksCommand, "relation", string.IsNullOrWhiteSpace(normalizedRelation) ? null : normalizedRelation);
+                AddDbParameter(linksCommand, "review_only", review == true);
                 AddDbParameter(linksCommand, "evidence", string.IsNullOrWhiteSpace(normalizedEvidence) ? null : normalizedEvidence);
                 AddDbParameter(linksCommand, "entity_type", string.IsNullOrWhiteSpace(normalizedEntityType) ? null : normalizedEntityType);
                 AddDbParameter(linksCommand, "query", string.IsNullOrWhiteSpace(normalizedQuery) ? null : normalizedQuery);
@@ -1969,6 +2018,7 @@ internal sealed record DashboardDto(
     DateTime? LatestDataSync,
     TotalsDto Totals,
     SyncOverviewDto SyncOverview,
+    KnowledgeQualitySummaryDto KnowledgeQuality,
     IReadOnlyList<RepositoryDto> Repositories,
     IReadOnlyList<SyncStateDto> SyncStates,
     IReadOnlyList<SyncRunDto> RecentRuns);
@@ -2001,6 +2051,16 @@ internal sealed record SyncOverviewDto(
     int TotalRuns,
     int FailedRunsInHistory,
     DateTime? LatestRunAt);
+
+internal sealed record KnowledgeQualitySummaryDto(
+    int ReviewLinks,
+    int RepositoriesWithReviewLinks,
+    IReadOnlyList<KnowledgeReviewRepositoryDto> Repositories);
+
+internal sealed record KnowledgeReviewRepositoryDto(
+    long RepositoryId,
+    string RepositoryFullName,
+    int ReviewLinks);
 
 internal sealed record RepositoryDto(
     long Id,

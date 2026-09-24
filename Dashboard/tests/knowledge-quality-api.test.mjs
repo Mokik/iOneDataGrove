@@ -41,6 +41,29 @@ async function readJson(path, parameters) {
 
 test("verified issue to symbol chains remain navigable", { skip: !base }, async () => {
   const dashboard = await readJson("/dashboard");
+  const quality = dashboard.knowledgeQuality;
+  assert.ok(quality, "Il riepilogo qualità deve essere presente nella dashboard");
+  assert.equal(
+    quality.reviewLinks,
+    quality.repositories.reduce((total, repository) => total + repository.reviewLinks, 0),
+    "Il totale dei riferimenti deve corrispondere alla somma per repository",
+  );
+  assert.equal(quality.repositoriesWithReviewLinks, quality.repositories.length);
+
+  for (const repositoryQuality of quality.repositories) {
+    assert.ok(repositoryQuality.reviewLinks > 0, `${repositoryQuality.repositoryFullName}: conteggio qualità non valido`);
+    assert.ok(dashboard.repositories.some(repository => repository.id === repositoryQuality.repositoryId), `${repositoryQuality.repositoryFullName}: repository non presente nel catalogo`);
+  }
+  if (quality.repositories.length > 0) {
+    const repositoryQuality = quality.repositories[0];
+    const reviewCatalog = await readJson(`/repositories/${repositoryQuality.repositoryId}/links`, {
+      relation: "references",
+      review: "true",
+      pageSize: "100",
+    });
+    assert.ok(reviewCatalog.matchedLinks > 0, `${repositoryQuality.repositoryFullName}: filtro qualità vuoto`);
+    assert.ok(reviewCatalog.links.every(link => link.requiresReview), `${repositoryQuality.repositoryFullName}: il filtro include riferimenti già confermati`);
+  }
 
   for (const expected of verifiedChains) {
     const repository = dashboard.repositories.find(item => item.fullName === expected.repository);

@@ -47,6 +47,8 @@ export function RepositoryExplorerClient({ repositoryId }: { repositoryId: numbe
     ? { type: parameters.get("focusType")!, id: focusId, label: parameters.get("label") ?? "Elemento selezionato" } : null;
   const sourcePath = parameters.get("path");
   const sourceLine = Number(parameters.get("line")) || null;
+  const initialLinkRelation = parameters.get("relation") === "references" ? "references" : "all";
+  const initialReviewOnly = parameters.get("review") === "required";
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
@@ -205,7 +207,7 @@ export function RepositoryExplorerClient({ repositoryId }: { repositoryId: numbe
           </>}
 
           {tab === "source" && <SourceCodeExplorer key={`${repositoryId}-${navigation}`} repositoryId={repositoryId} initialPath={sourcePath} initialLine={sourceLine} />}
-          {tab === "links" && <KnowledgeLinksExplorer key={`${repositoryId}-${navigation}`} repositoryId={repositoryId} focus={focus} path={sourcePath} />}
+          {tab === "links" && <KnowledgeLinksExplorer key={`${repositoryId}-${navigation}`} repositoryId={repositoryId} focus={focus} path={sourcePath} initialRelation={initialLinkRelation} initialReviewOnly={initialReviewOnly} />}
           {tab === "issues" && <DataPanel title="Issue importate" shown={data?.issues.length ?? 0} total={data?.resultCounts.issues ?? 0}>{<IssueTable items={data?.issues ?? []} />}</DataPanel>}
           {tab === "pulls" && <DataPanel title="Pull request importate" shown={data?.pullRequests.length ?? 0} total={data?.resultCounts.pullRequests ?? 0}>{<PullTable items={data?.pullRequests ?? []} />}</DataPanel>}
           {tab === "commits" && <DataPanel title="Commit importati" shown={data?.commits.length ?? 0} total={data?.resultCounts.commits ?? 0}>{<CommitTable items={data?.commits ?? []} />}</DataPanel>}

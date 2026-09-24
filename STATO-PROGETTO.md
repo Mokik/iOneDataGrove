@@ -26,7 +26,8 @@
 
 - La sezione Collegamenti mostra indicatori separati, conteggio e percentuale per `closes`, `references`, `contains_commit`, `modifies_file` e `declares_symbol`.
 - I collegamenti `references` indicano una citazione senza una formula esplicita di chiusura. I messaggi standard `Merge pull request #…` sono riconosciuti automaticamente come riferimenti confermati; soltanto i casi realmente ambigui sono evidenziati come “Da verificare”.
-- È disponibile il filtro diretto “Mostra riferimenti” per esaminare rapidamente i casi potenzialmente ambigui.
+- È disponibile il filtro diretto “Mostra solo questi” per esaminare esclusivamente i casi potenzialmente ambigui.
+- La dashboard generale mostra il totale dei riferimenti da verificare, li raggruppa per repository e apre direttamente la scheda Collegamenti con il filtro di revisione già applicato.
 - Il test API `Dashboard/tests/knowledge-quality-api.test.mjs` verifica in sola lettura tre catene reali complete: iOneCostantin #1 → PR #2, iOneGavio #48 → PR #49 e iOneIpWow #14 → PR #15, fino a commit, file e simbolo C#. Verifica inoltre che i riferimenti dei messaggi standard di merge non richiedano revisione manuale.
 - Il test si esegue con `KNOWLEDGE_QUALITY_TEST_API=http://127.0.0.1:5088/api` e `npm run test:knowledge` usando Node 22 o successivo.
 - Il riconoscimento delle chiusure comprende ora `Chiude`, `Chiudono`, `Risolve`, `Risolvono`, `Corregge`, `Correggono`, oltre alle forme `Chiuso/a/i/e da`, `Risolto/a/i/e da` e `Corretto/a/i/e da`.
