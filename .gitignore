@@ -1,0 +1,48 @@
+# Local package caches and installed dependencies
+.pnpm-store/
+**/node_modules/
+
+# IDE and user-specific settings
+.vs/
+**/.vs/
+.vscode/
+**/.vscode/
+*.user
+*.suo
+
+# Build, test, and framework output
+**/bin/
+**/obj/
+**/dist/
+**/coverage/
+**/.next/
+**/.vinext/
+**/.wrangler/
+**/out/
+**/outputs/
+**/work/
+*.tsbuildinfo
+
+# Local configuration and secrets
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+**/appsettings.Development.json
+**/secrets.json
+Varie/Varie.txt
+
+# Local Git metadata retained from the former nested Dashboard repository
+Dashboard/.git-local-backup/
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

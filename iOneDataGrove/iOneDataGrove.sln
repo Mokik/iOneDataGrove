@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "iOneDataGrove.Persistence", "src\iOneDataGrove.Persistence\iOneDataGrove.Persistence.csproj", "{DA1FD194-4BE8-4D41-BEF1-9E31A153FD08}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "iOneDataGrove.Importer", "src\iOneDataGrove.Importer\iOneDataGrove.Importer.csproj", "{3B5DB6C6-0511-4AD2-A8AF-CA7D59F9B17D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "iOneDataGrove.Importer.Tests", "tests\iOneDataGrove.Importer.Tests\iOneDataGrove.Importer.Tests.csproj", "{58921727-DCE2-497A-9C9C-760D900989CC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DA1FD194-4BE8-4D41-BEF1-9E31A153FD08}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA1FD194-4BE8-4D41-BEF1-9E31A153FD08}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA1FD194-4BE8-4D41-BEF1-9E31A153FD08}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA1FD194-4BE8-4D41-BEF1-9E31A153FD08}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B5DB6C6-0511-4AD2-A8AF-CA7D59F9B17D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B5DB6C6-0511-4AD2-A8AF-CA7D59F9B17D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B5DB6C6-0511-4AD2-A8AF-CA7D59F9B17D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B5DB6C6-0511-4AD2-A8AF-CA7D59F9B17D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{58921727-DCE2-497A-9C9C-760D900989CC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{58921727-DCE2-497A-9C9C-760D900989CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{58921727-DCE2-497A-9C9C-760D900989CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{58921727-DCE2-497A-9C9C-760D900989CC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

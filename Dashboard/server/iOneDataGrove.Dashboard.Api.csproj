@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>iOneDataGrove-Importer-7c0c2750-e167-4b74-8bc4-ff3fc5be5064</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\iOneDataGrove\src\iOneDataGrove.Persistence\iOneDataGrove.Persistence.csproj" />
+  </ItemGroup>
+</Project>

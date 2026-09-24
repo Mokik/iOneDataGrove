@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+pnpm_cmd="/c/Users/MicheleMaccini/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/pnpm.cmd"
+if [[ "${1:-}" == "ci" ]]; then
+  exec "$pnpm_cmd" install --frozen-lockfile
+fi
+exec "$pnpm_cmd" "$@"
