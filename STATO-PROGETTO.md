@@ -191,7 +191,10 @@ I tipi principali di relazione sono `references`, `closes`, `contains_commit`, `
 - sezione **Collegamenti** per esplorare il knowledge layer;
 - ricerca e filtri dei collegamenti eseguiti lato PostgreSQL;
 - filtri per relazione, origine e tipo di entità;
-- paginazione e conteggio dei risultati filtrati.
+- paginazione e conteggio dei risultati filtrati;
+- pagina **Ricerca trasversale** su repository, issue, commenti, pull request, commit, file sorgente e simboli C#;
+- filtri per repository e tipo di risultato, con apertura diretta nel Repository Explorer;
+- indici PostgreSQL GIN dedicati alla ricerca globale.
 
 ## Database
 
@@ -204,6 +207,7 @@ Gli script evolutivi si trovano in `iOneDataGrove\database`:
 3. `003_repository_files_full_text.sql` — ricerca full-text;
 4. `004_csharp_structural_index.sql` — struttura C#;
 5. `005_automatic_knowledge_links.sql` — collegamenti automatici.
+6. `006_global_search_full_text.sql` — indici full-text per la ricerca trasversale.
 
 Non inserire token o password nel codice o nella dashboard. Le credenziali sono gestite dalla configurazione locale/user secrets già predisposta.
 
@@ -229,8 +233,10 @@ Nota importante: GitHub non aggiorna sempre `issue.updated_at` quando cambia un 
 - test importatore: **23/23 superati** in Release;
 - build dashboard: riuscita;
 - test dashboard: **2/2 superati**;
+- test API ricerca trasversale: **3/3 superati** sui dati reali di iOneCostantin, iOneGavio e iOneIpWow;
 - lint frontend: superato;
 - controllo TypeScript globale, inclusi i tipi Cloudflare: superato;
+- ricerca globale verificata nel browser con navigazione diretta al file e tempi indicativi di circa 0,3–0,4 secondi nei casi campione;
 - backup PostgreSQL compresso: creato e verificato con `pg_restore --list`;
 - ripristino reale isolato: riuscito, con 16 tabelle e 8.042.540 righe corrispondenti.
 

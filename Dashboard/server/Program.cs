@@ -275,6 +275,340 @@ app.MapGet("/api/dashboard", async (IOneDataGroveDbContext db, CancellationToken
     }
 });
 
+app.MapGet("/api/search", async (
+    string? q,
+    long? repositoryId,
+    string? entityType,
+    int? page,
+    int? pageSize,
+    IOneDataGroveDbContext db,
+    CancellationToken ct) =>
+{
+    try
+    {
+        var normalizedQuery = q?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedQuery) || normalizedQuery.Length < 2)
+        {
+            return Results.BadRequest(new { message = "Inserisci almeno due caratteri da cercare." });
+        }
+        if (normalizedQuery.Length > 200)
+        {
+            return Results.BadRequest(new { message = "La ricerca non può superare 200 caratteri." });
+        }
+        if (repositoryId <= 0)
+        {
+            return Results.BadRequest(new { message = "Repository non valido." });
+        }
+
+        var normalizedEntityType = entityType?.Trim().ToLowerInvariant();
+        var allowedEntityTypes = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "repository", "issue", "issue_comment", "pull_request", "commit", "repository_file", "code_symbol"
+        };
+        if (!string.IsNullOrWhiteSpace(normalizedEntityType) && !allowedEntityTypes.Contains(normalizedEntityType))
+        {
+            return Results.BadRequest(new { message = "Tipo di risultato non valido." });
+        }
+
+        var normalizedPage = page is > 0 ? page.GetValueOrDefault() : 1;
+        var normalizedPageSize = pageSize is > 0 ? Math.Min(pageSize.GetValueOrDefault(), 50) : 20;
+
+        const string searchSql = """
+            WITH search_query AS
+            (
+                SELECT websearch_to_tsquery('simple', @search_query) AS value
+            ),
+            candidates AS
+            (
+                SELECT
+                    'repository'::text AS entity_type,
+                    repository.id AS entity_id,
+                    repository.id AS repository_id,
+                    repository.full_name AS repository_full_name,
+                    repository.full_name AS title,
+                    repository.full_name || ' ' || COALESCE(repository.description, '') AS search_text,
+                    COALESCE(repository.description, 'Repository GitHub') AS fallback_snippet,
+                    repository.html_url,
+                    NULL::text AS source_path,
+                    NULL::integer AS source_line,
+                    COALESCE(repository.updated_at, repository.pushed_at, repository.synced_at) AS updated_at,
+                    (ts_rank_cd(
+                        setweight(to_tsvector('simple', repository.full_name), 'A') ||
+                        setweight(to_tsvector('simple', COALESCE(repository.description, '')), 'B'),
+                        search_query.value,
+                        32
+                    ) + CASE WHEN repository.full_name ILIKE '%' || @raw_query || '%' THEN 0.35 ELSE 0 END)::double precision AS relevance
+                FROM github.repositories AS repository
+                CROSS JOIN search_query
+                WHERE NOT repository.is_excluded
+                  AND (CAST(@repository_id AS bigint) IS NULL OR repository.id = @repository_id)
+                  AND (CAST(@entity_type AS text) IS NULL OR @entity_type = 'repository')
+                  AND (
+                      setweight(to_tsvector('simple', repository.full_name), 'A') ||
+                      setweight(to_tsvector('simple', COALESCE(repository.description, '')), 'B')
+                  ) @@ search_query.value
+
+                UNION ALL
+
+                SELECT
+                    'issue', issue.id, issue.repository_id, repository.full_name,
+                    '#' || issue.number || ' · ' || issue.title,
+                    issue.title || ' ' || COALESCE(issue.body, ''),
+                    issue.title,
+                    issue.html_url,
+                    NULL::text,
+                    NULL::integer,
+                    issue.updated_at,
+                    (ts_rank_cd(
+                        setweight(to_tsvector('simple', issue.title), 'A') ||
+                        setweight(to_tsvector('simple', COALESCE(issue.body, '')), 'B'),
+                        search_query.value,
+                        32
+                    ) + CASE WHEN issue.title ILIKE '%' || @raw_query || '%' THEN 0.30 ELSE 0 END)::double precision
+                FROM github.issues AS issue
+                INNER JOIN github.repositories AS repository ON repository.id = issue.repository_id
+                CROSS JOIN search_query
+                WHERE NOT repository.is_excluded
+                  AND (CAST(@repository_id AS bigint) IS NULL OR issue.repository_id = @repository_id)
+                  AND (CAST(@entity_type AS text) IS NULL OR @entity_type = 'issue')
+                  AND (
+                      setweight(to_tsvector('simple', issue.title), 'A') ||
+                      setweight(to_tsvector('simple', COALESCE(issue.body, '')), 'B')
+                  ) @@ search_query.value
+
+                UNION ALL
+
+                SELECT
+                    'issue_comment', comment.id, comment.repository_id, repository.full_name,
+                    'Commento su #' || issue.number || ' · ' || issue.title,
+                    COALESCE(comment.body, ''),
+                    'Commento su issue #' || issue.number,
+                    comment.html_url,
+                    NULL::text,
+                    NULL::integer,
+                    comment.updated_at,
+                    ts_rank_cd(to_tsvector('simple', COALESCE(comment.body, '')), search_query.value, 32)::double precision
+                FROM github.issue_comments AS comment
+                INNER JOIN github.issues AS issue ON issue.id = comment.issue_id
+                INNER JOIN github.repositories AS repository ON repository.id = comment.repository_id
+                CROSS JOIN search_query
+                WHERE NOT repository.is_excluded
+                  AND (CAST(@repository_id AS bigint) IS NULL OR comment.repository_id = @repository_id)
+                  AND (CAST(@entity_type AS text) IS NULL OR @entity_type = 'issue_comment')
+                  AND to_tsvector('simple', COALESCE(comment.body, '')) @@ search_query.value
+
+                UNION ALL
+
+                SELECT
+                    'pull_request', pull_request.id, pull_request.repository_id, repository.full_name,
+                    'PR #' || pull_request.number || ' · ' || pull_request.title,
+                    pull_request.title || ' ' || COALESCE(pull_request.body, ''),
+                    pull_request.title,
+                    pull_request.html_url,
+                    NULL::text,
+                    NULL::integer,
+                    pull_request.updated_at,
+                    (ts_rank_cd(
+                        setweight(to_tsvector('simple', pull_request.title), 'A') ||
+                        setweight(to_tsvector('simple', COALESCE(pull_request.body, '')), 'B'),
+                        search_query.value,
+                        32
+                    ) + CASE WHEN pull_request.title ILIKE '%' || @raw_query || '%' THEN 0.30 ELSE 0 END)::double precision
+                FROM github.pull_requests AS pull_request
+                INNER JOIN github.repositories AS repository ON repository.id = pull_request.repository_id
+                CROSS JOIN search_query
+                WHERE NOT repository.is_excluded
+                  AND (CAST(@repository_id AS bigint) IS NULL OR pull_request.repository_id = @repository_id)
+                  AND (CAST(@entity_type AS text) IS NULL OR @entity_type = 'pull_request')
+                  AND (
+                      setweight(to_tsvector('simple', pull_request.title), 'A') ||
+                      setweight(to_tsvector('simple', COALESCE(pull_request.body, '')), 'B')
+                  ) @@ search_query.value
+
+                UNION ALL
+
+                SELECT
+                    'commit', commit.id, commit.repository_id, repository.full_name,
+                    LEFT(commit.sha, 8) || ' · ' || SPLIT_PART(commit.message, E'\n', 1),
+                    commit.sha || ' ' || commit.message || ' ' || COALESCE(commit.author_name, ''),
+                    SPLIT_PART(commit.message, E'\n', 1),
+                    commit.html_url,
+                    NULL::text,
+                    NULL::integer,
+                    COALESCE(commit.committed_at, commit.authored_at, commit.synced_at),
+                    (ts_rank_cd(
+                        setweight(to_tsvector('simple', commit.sha), 'A') ||
+                        setweight(to_tsvector('simple', commit.message), 'B') ||
+                        setweight(to_tsvector('simple', COALESCE(commit.author_name, '')), 'C'),
+                        search_query.value,
+                        32
+                    ) + CASE WHEN commit.sha ILIKE @raw_query || '%' THEN 0.40 ELSE 0 END)::double precision
+                FROM github.commits AS commit
+                INNER JOIN github.repositories AS repository ON repository.id = commit.repository_id
+                CROSS JOIN search_query
+                WHERE NOT repository.is_excluded
+                  AND (CAST(@repository_id AS bigint) IS NULL OR commit.repository_id = @repository_id)
+                  AND (CAST(@entity_type AS text) IS NULL OR @entity_type = 'commit')
+                  AND (
+                      setweight(to_tsvector('simple', commit.sha), 'A') ||
+                      setweight(to_tsvector('simple', commit.message), 'B') ||
+                      setweight(to_tsvector('simple', COALESCE(commit.author_name, '')), 'C')
+                  ) @@ search_query.value
+
+                UNION ALL
+
+                SELECT
+                    'repository_file', file.id, file.repository_id, repository.full_name,
+                    file.path,
+                    file.path || ' ' || file.content,
+                    'File sorgente · ' || COALESCE(file.language, file.extension, 'tipo non rilevato'),
+                    file.html_url,
+                    file.path,
+                    (
+                        SELECT source_line.ordinality::integer
+                        FROM regexp_split_to_table(replace(file.content, E'\r\n', E'\n'), E'\n')
+                            WITH ORDINALITY AS source_line(line, ordinality)
+                        WHERE to_tsvector('simple', source_line.line) @@ search_query.value
+                        LIMIT 1
+                    ),
+                    file.synced_at,
+                    (ts_rank_cd(
+                        setweight(to_tsvector('simple', COALESCE(file.path, '')), 'A') ||
+                        setweight(to_tsvector('simple', COALESCE(file.content, '')), 'B'),
+                        search_query.value,
+                        32
+                    ) + CASE WHEN file.path ILIKE '%' || @raw_query || '%' THEN 0.35 ELSE 0 END)::double precision
+                FROM github.repository_files AS file
+                INNER JOIN github.repositories AS repository ON repository.id = file.repository_id
+                CROSS JOIN search_query
+                WHERE NOT repository.is_excluded
+                  AND NOT file.is_deleted
+                  AND (CAST(@repository_id AS bigint) IS NULL OR file.repository_id = @repository_id)
+                  AND (CAST(@entity_type AS text) IS NULL OR @entity_type = 'repository_file')
+                  AND (
+                      setweight(to_tsvector('simple', COALESCE(file.path, '')), 'A') ||
+                      setweight(to_tsvector('simple', COALESCE(file.content, '')), 'B')
+                  ) @@ search_query.value
+
+                UNION ALL
+
+                SELECT
+                    'code_symbol', symbol.id, symbol.repository_id, repository.full_name,
+                    symbol.qualified_name,
+                    symbol.qualified_name || ' ' || symbol.signature || ' ' || symbol.kind || ' ' || COALESCE(symbol.containing_symbol, ''),
+                    symbol.kind || ' · ' || symbol.signature,
+                    file.html_url || '#L' || symbol.start_line,
+                    file.path,
+                    symbol.start_line,
+                    symbol.indexed_at,
+                    (ts_rank_cd(
+                        setweight(to_tsvector('simple', symbol.qualified_name), 'A') ||
+                        setweight(to_tsvector('simple', symbol.signature), 'B') ||
+                        setweight(to_tsvector('simple', symbol.kind), 'C'),
+                        search_query.value,
+                        32
+                    ) + CASE WHEN symbol.qualified_name ILIKE '%' || @raw_query || '%' THEN 0.45 ELSE 0 END)::double precision
+                FROM knowledge.code_symbols AS symbol
+                INNER JOIN github.repository_files AS file ON file.id = symbol.repository_file_id
+                INNER JOIN github.repositories AS repository ON repository.id = symbol.repository_id
+                CROSS JOIN search_query
+                WHERE NOT repository.is_excluded
+                  AND NOT file.is_deleted
+                  AND (CAST(@repository_id AS bigint) IS NULL OR symbol.repository_id = @repository_id)
+                  AND (CAST(@entity_type AS text) IS NULL OR @entity_type = 'code_symbol')
+                  AND (
+                      setweight(to_tsvector('simple', symbol.qualified_name), 'A') ||
+                      setweight(to_tsvector('simple', symbol.signature), 'B') ||
+                      setweight(to_tsvector('simple', symbol.kind), 'C')
+                  ) @@ search_query.value
+            ),
+            ranked AS MATERIALIZED
+            (
+                SELECT candidates.*, COUNT(*) OVER () AS matched_count
+                FROM candidates
+                ORDER BY relevance DESC, updated_at DESC, title
+                LIMIT @page_size OFFSET @offset
+            )
+            SELECT
+                ranked.entity_type,
+                ranked.entity_id,
+                ranked.repository_id,
+                ranked.repository_full_name,
+                ranked.title,
+                CASE
+                    WHEN ranked.search_text = '' THEN ranked.fallback_snippet
+                    ELSE ts_headline(
+                        'simple', ranked.search_text, search_query.value,
+                        'StartSel=⟦, StopSel=⟧, MaxWords=32, MinWords=8, ShortWord=2, HighlightAll=false, MaxFragments=2, FragmentDelimiter=…'
+                    )
+                END AS snippet,
+                ranked.html_url,
+                ranked.source_path,
+                ranked.source_line,
+                ranked.updated_at,
+                ranked.relevance,
+                ranked.matched_count
+            FROM ranked
+            CROSS JOIN search_query
+            ORDER BY ranked.relevance DESC, ranked.updated_at DESC, ranked.title;
+            """;
+
+        var results = new List<GlobalSearchResultDto>();
+        var matchedResults = 0;
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            await using var command = db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = searchSql;
+            AddDbParameter(command, "search_query", normalizedQuery);
+            AddDbParameter(command, "raw_query", normalizedQuery);
+            AddDbParameter(command, "repository_id", repositoryId);
+            AddDbParameter(command, "entity_type", string.IsNullOrWhiteSpace(normalizedEntityType) ? null : normalizedEntityType);
+            AddDbParameter(command, "page_size", normalizedPageSize);
+            AddDbParameter(command, "offset", checked((normalizedPage - 1) * normalizedPageSize));
+
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                matchedResults = checked((int)reader.GetInt64(11));
+                results.Add(new GlobalSearchResultDto(
+                    reader.GetString(0),
+                    reader.GetInt64(1),
+                    reader.GetInt64(2),
+                    reader.GetString(3),
+                    reader.GetString(4),
+                    reader.GetString(5),
+                    reader.IsDBNull(6) ? null : reader.GetString(6),
+                    reader.IsDBNull(7) ? null : reader.GetString(7),
+                    reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                    reader.GetDateTime(9),
+                    reader.GetDouble(10)));
+            }
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
+
+        return Results.Ok(new GlobalSearchCatalogDto(
+            normalizedQuery,
+            repositoryId,
+            string.IsNullOrWhiteSpace(normalizedEntityType) ? null : normalizedEntityType,
+            matchedResults,
+            normalizedPage,
+            normalizedPageSize,
+            matchedResults == 0 ? 0 : (int)Math.Ceiling(matchedResults / (double)normalizedPageSize),
+            results));
+    }
+    catch (Exception exception)
+    {
+        app.Logger.LogError(exception, "Errore durante la ricerca trasversale di {SearchQuery}.", q);
+        return Results.Problem(
+            title: "Ricerca non disponibile",
+            detail: "La dashboard non riesce a completare la ricerca trasversale in PostgreSQL.",
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+});
 app.MapPatch("/api/repositories/{id:long}/synchronization", async (
     long id,
     RepositorySynchronizationRequest request,
@@ -2011,6 +2345,28 @@ static IResult ImportInProgressResult() => Results.Conflict(new
 
 app.Run();
 
+internal sealed record GlobalSearchCatalogDto(
+    string Query,
+    long? RepositoryId,
+    string? EntityType,
+    int MatchedResults,
+    int Page,
+    int PageSize,
+    int TotalPages,
+    IReadOnlyList<GlobalSearchResultDto> Results);
+
+internal sealed record GlobalSearchResultDto(
+    string EntityType,
+    long EntityId,
+    long RepositoryId,
+    string RepositoryFullName,
+    string Title,
+    string Snippet,
+    string? HtmlUrl,
+    string? SourcePath,
+    int? SourceLine,
+    DateTime UpdatedAt,
+    double Relevance);
 internal sealed record DashboardDto(
     DateTime GeneratedAt,
     string Status,

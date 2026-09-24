@@ -329,6 +329,7 @@ export function DashboardClient() {
         </div>
         <nav className="nav-list" aria-label="Navigazione principale">
           <a className="nav-item active" href="#panoramica">Panoramica</a>
+          <a className="nav-item" href="/search">Ricerca</a>
           <a className="nav-item" href="#sorgenti">Sorgenti</a>
           <a className="nav-item" href="#qualita">Qualità</a>
           <a className="nav-item" href="#repository">Repository</a>

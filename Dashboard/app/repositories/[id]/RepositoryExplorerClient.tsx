@@ -142,6 +142,7 @@ export function RepositoryExplorerClient({ repositoryId }: { repositoryId: numbe
       <aside className="explorer-sidebar">
         <Link className="brand-mark explorer-brand" href="/"><span className="brand-symbol">iO</span><span><strong>Data Grove</strong><small>Repository explorer</small></span></Link>
         <Link className="back-link" href="/">← Torna alla dashboard</Link>
+        <Link className="back-link search-back-link" href="/search">⌕ Ricerca trasversale</Link>
         <div className="repo-switcher">
           <label htmlFor="repository-select">Repository con dati</label>
           <select id="repository-select" value={repositoryId} onChange={event => { window.location.href = `/repositories/${event.target.value}`; }} disabled={!data}>

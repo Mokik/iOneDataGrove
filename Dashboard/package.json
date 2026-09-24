@@ -16,6 +16,7 @@
     "test": "vinext build && node --test tests/rendered-html.test.mjs",
     "test:navigation": "node --test tests/navigation-api.test.mjs",
     "test:knowledge": "node --test tests/knowledge-quality-api.test.mjs",
+    "test:search": "node --test tests/global-search-api.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
