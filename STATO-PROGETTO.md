@@ -20,7 +20,17 @@
 - Prima del salvataggio, stringhe e JSON vengono normalizzati per PostgreSQL. I caratteri NUL semantici provenienti dai dati GitHub sono sostituiti con U+FFFD, mentre le sequenze letterali `\\u0000` restano inalterate.
 - I messaggi di errore di sincronizzazione includono ora le cause interne delle eccezioni EF Core/PostgreSQL.
 - Verificati con successo casi reali di repository e pull request molto grandi, fra cui `Iportal` (PR da 6.894 file) e `PortaleGestoriGiap` (PR da 4.563 file). Completati inoltre i recuperi di `iOneCostantin`, `IOneAssetIp`, `iOneAt`, `iOneRetitalia`, `iOneSpeedy` e `IOneTotalLube`.
-- Test dell'importatore: **22/22 superati** in configurazione Release.
+- Test dell'importatore: **23/23 superati** in configurazione Release.
+
+### Qualità del knowledge layer
+
+- La sezione Collegamenti mostra indicatori separati, conteggio e percentuale per `closes`, `references`, `contains_commit`, `modifies_file` e `declares_symbol`.
+- I collegamenti `references` indicano una citazione senza una formula esplicita di chiusura. I messaggi standard `Merge pull request #…` sono riconosciuti automaticamente come riferimenti confermati; soltanto i casi realmente ambigui sono evidenziati come “Da verificare”.
+- È disponibile il filtro diretto “Mostra riferimenti” per esaminare rapidamente i casi potenzialmente ambigui.
+- Il test API `Dashboard/tests/knowledge-quality-api.test.mjs` verifica in sola lettura tre catene reali complete: iOneCostantin #1 → PR #2, iOneGavio #48 → PR #49 e iOneIpWow #14 → PR #15, fino a commit, file e simbolo C#. Verifica inoltre che i riferimenti dei messaggi standard di merge non richiedano revisione manuale.
+- Il test si esegue con `KNOWLEDGE_QUALITY_TEST_API=http://127.0.0.1:5088/api` e `npm run test:knowledge` usando Node 22 o successivo.
+- Il riconoscimento delle chiusure comprende ora `Chiude`, `Chiudono`, `Risolve`, `Risolvono`, `Corregge`, `Correggono`, oltre alle forme `Chiuso/a/i/e da`, `Risolto/a/i/e da` e `Corretto/a/i/e da`.
+- Le tre catene automatiche, TypeScript, lint, build frontend e build API risultano superati; la resa è stata controllata anche nel browser.
 
 ### Backup locale
 
@@ -215,7 +225,7 @@ Nota importante: GitHub non aggiorna sempre `issue.updated_at` quando cambia un 
 
 - importazione completa e recuperi mirati: riusciti senza errori residui;
 - compilazione API dashboard: riuscita con 0 errori e 0 avvisi;
-- test importatore: **22/22 superati** in Release;
+- test importatore: **23/23 superati** in Release;
 - build dashboard: riuscita;
 - test dashboard: **2/2 superati**;
 - lint frontend: superato;
@@ -302,7 +312,7 @@ La base locale e l'importazione completa sono ora operative. Procedere in questo
 2. usare normalmente l'importazione incrementale e controllare dalla dashboard che non compaiano errori o risorse incomplete;
 3. ripetere periodicamente la prova di ripristino, soprattutto dopo modifiche allo schema PostgreSQL;
 4. controllare un campione di collegamenti `references` e `closes`, distinguendo quelli corretti dai falsi positivi;
-5. introdurre metriche di qualità del knowledge layer;
+5. estendere nel tempo i casi verificati quando emergono nuove relazioni significative;
 6. progettare chunk, embedding e ricerca ibrida soltanto dopo la validazione qualitativa dei collegamenti;
 7. aggiungere altre fonti dati mantenendo un modello comune di provenienza, sincronizzazione ed entità.
 

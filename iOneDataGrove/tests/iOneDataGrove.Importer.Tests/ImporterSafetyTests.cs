@@ -90,15 +90,30 @@ public sealed class ImporterSafetyTests
     {
         var references = KnowledgeLinkIndexer.ExtractReferences(
             "Rif. #12. Fixes #34, resolves iOneSolutionsSrl/iOneGavio#56, " +
-            "Chiude #78 e chiudono #90.",
+            "Chiude #78, chiudono #90, Risolve #91, Corregge #92, " +
+            "Chiuso da #93, risolta da #94 e corrette da #95.",
             "iOneSolutionsSrl/iOneGavio");
 
-        Assert.AreEqual(5, references.Count);
+        Assert.AreEqual(10, references.Count);
         Assert.AreEqual("references", references.Single(item => item.Number == 12).RelationType);
-        Assert.AreEqual("closes", references.Single(item => item.Number == 34).RelationType);
-        Assert.AreEqual("closes", references.Single(item => item.Number == 56).RelationType);
-        Assert.AreEqual("closes", references.Single(item => item.Number == 78).RelationType);
-        Assert.AreEqual("closes", references.Single(item => item.Number == 90).RelationType);
+        foreach (var number in new[] { 34, 56, 78, 90, 91, 92, 93, 94, 95 })
+        {
+            Assert.AreEqual(
+                "closes",
+                references.Single(item => item.Number == number).RelationType,
+                $"Il riferimento #{number} deve essere riconosciuto come chiusura.");
+        }
+    }
+
+    [TestMethod]
+    public void KnowledgeLinksKeepNeutralItalianPhrasesAsReferences()
+    {
+        var references = KnowledgeLinkIndexer.ExtractReferences(
+            "Vedi #21, collegato a #22 e discusso nella #23.",
+            "iOneSolutionsSrl/iOneGavio");
+
+        Assert.HasCount(3, references);
+        Assert.IsTrue(references.All(item => item.RelationType == "references"));
     }
 
     [TestMethod]

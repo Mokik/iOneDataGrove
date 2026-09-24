@@ -410,7 +410,7 @@ internal sealed partial class KnowledgeLinkIndexer(IOneDataGroveDbContext dbCont
     }
 
     [GeneratedRegex(
-        @"(?ix)(?:(?<closing>close[sd]?|fix(?:e[sd])?|resolve[sd]?|chiude|chiudono)\s+)?(?:(?<repository>[a-z0-9_.-]+/[a-z0-9_.-]+))?\#(?<number>[1-9][0-9]*)(?![0-9])")]
+        @"(?ix)(?:(?<closing>close[sd]?|fix(?:e[sd])?|resolve[sd]?|chiude|chiudono|risolve|risolvono|corregge|correggono|(?:chius[oaie]|risolt[oaie]|corrett[oaie])\s+da)\s+)?(?:(?<repository>[a-z0-9_.-]+/[a-z0-9_.-]+))?\#(?<number>[1-9][0-9]*)(?![0-9])")]
     private static partial Regex IssueReferenceRegex();
 
     [GeneratedRegex(@"\s+")]

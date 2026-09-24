@@ -478,6 +478,19 @@ td code { padding: 4px 6px; background: #edf0ec; color: #526159; font: 10px Cons
 .knowledge-links-panel { margin-top: 28px; }
 .knowledge-links-heading { align-items: flex-start; }
 .knowledge-links-heading p:not(.section-kicker) { max-width: 680px; margin: 7px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.knowledge-quality-metrics { border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.knowledge-quality-metrics button { min-width: 0; padding: 15px 16px; border: 0; border-right: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; text-align: left; }
+.knowledge-quality-metrics button:last-child { border-right: 0; }
+.knowledge-quality-metrics button:hover, .knowledge-quality-metrics button.active { background: #edf4ee; box-shadow: inset 0 -3px #547761; }
+.knowledge-quality-metrics span, .knowledge-quality-metrics strong, .knowledge-quality-metrics small { display: block; }
+.knowledge-quality-metrics span { color: #68756d; font-size: 8px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.knowledge-quality-metrics strong { margin-top: 6px; font-size: 17px; }
+.knowledge-quality-metrics small { min-height: 28px; margin-top: 5px; color: #7c8780; font-size: 8px; line-height: 1.45; }
+.knowledge-quality-notice { padding: 12px 18px; border-top: 1px solid #e6d5ac; border-bottom: 1px solid #e6d5ac; background: #fff9e9; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.knowledge-quality-notice strong, .knowledge-quality-notice span { display: block; }
+.knowledge-quality-notice strong { color: #76551d; font-size: 10px; }
+.knowledge-quality-notice span { margin-top: 3px; color: #806f50; font-size: 8px; line-height: 1.45; }
+.knowledge-quality-notice button { flex: 0 0 auto; padding: 7px 10px; border: 1px solid #d7bd7d; background: #fff; color: #76551d; cursor: pointer; font-size: 8px; font-weight: 700; }
 .knowledge-link-toolbar { padding: 12px 18px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #f8f9f6; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .knowledge-link-toolbar > small { color: #7d8880; font-size: 8px; white-space: nowrap; }
 .knowledge-link-facets { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -497,6 +510,10 @@ td code { padding: 4px 6px; background: #edf0ec; color: #526159; font: 10px Cons
 .knowledge-link-row { min-height: 96px; padding: 14px 18px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(180px, 1fr) 120px minmax(180px, 1fr) minmax(170px, .85fr); gap: 15px; align-items: center; }
 .knowledge-link-row:last-child { border-bottom: 0; }
 .knowledge-link-row:hover { background: #fbfcfa; }
+.knowledge-link-row.is-ambiguous { box-shadow: inset 3px 0 #d0a34b; background: #fffdf7; }
+.knowledge-link-row.is-ambiguous:hover { background: #fff9e9; }
+.knowledge-review-badge { display: inline-block; margin-top: 5px; padding: 3px 6px; border: 1px solid #d7bd7d; border-radius: 999px; background: #fff4d5; color: #76551d; font-size: 7px; font-style: normal; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.knowledge-evidence small.knowledge-review-help { color: #8a6b31; }
 .knowledge-entity { min-width: 0; padding: 10px 12px; border: 1px solid #dce1dc; background: #fff; color: var(--ink); display: block; text-decoration: none; }
 a.knowledge-entity:hover { border-color: #819889; background: #f0f5f0; }
 .knowledge-entity small, .knowledge-entity strong { display: block; }
@@ -551,6 +568,9 @@ a.knowledge-entity:hover { border-color: #819889; background: #f0f5f0; }
   .verification-intro button { width: 100%; }
   .finding-row { grid-template-columns: 25px 1fr; }
   .finding-row a { grid-column: 2; }
+  .knowledge-quality-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .knowledge-quality-metrics button { border-bottom: 1px solid var(--line); }
+  .knowledge-quality-notice { align-items: flex-start; flex-direction: column; }
   .knowledge-link-toolbar { align-items: flex-start; flex-direction: column; }
   .knowledge-link-search { align-items: stretch; flex-direction: column; }
   .knowledge-link-search select { width: 100%; }

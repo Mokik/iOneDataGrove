@@ -1275,16 +1275,32 @@ app.MapGet("/api/repositories/{id:long}/links", async (
             var connection = db.Database.GetDbConnection();
             var facets = new List<KnowledgeLinkFacetDto>();
             var totalLinks = 0;
+            var reviewLinks = 0;
             DateTime? lastRefreshedAt = null;
 
             await using (var facetCommand = connection.CreateCommand())
             {
                 facetCommand.CommandText = """
-                    SELECT relation_type, COUNT(*)::integer, MAX(refreshed_at)
-                    FROM knowledge.entity_links
-                    WHERE repository_id = @repository_id
-                    GROUP BY relation_type
-                    ORDER BY COUNT(*) DESC, relation_type;
+                    SELECT
+                        link.relation_type,
+                        COUNT(*)::integer,
+                        MAX(link.refreshed_at),
+                        COUNT(*) FILTER
+                        (
+                            WHERE link.relation_type = 'references'
+                              AND link.evidence_type = 'text_reference'
+                              AND NOT
+                              (
+                                  link.source_type = 'commit'
+                                  AND source_commit.message ~* '^[[:space:]]*Merge pull request #[1-9][0-9]*'
+                              )
+                        )::integer AS review_count
+                    FROM knowledge.entity_links AS link
+                    LEFT JOIN github.commits AS source_commit
+                        ON link.source_type = 'commit' AND source_commit.id = link.source_id
+                    WHERE link.repository_id = @repository_id
+                    GROUP BY link.relation_type
+                    ORDER BY COUNT(*) DESC, link.relation_type;
                     """;
                 AddDbParameter(facetCommand, "repository_id", id);
                 await using var reader = await facetCommand.ExecuteReaderAsync(ct);
@@ -1293,6 +1309,7 @@ app.MapGet("/api/repositories/{id:long}/links", async (
                     var count = reader.GetInt32(1);
                     var refreshedAt = reader.GetDateTime(2);
                     totalLinks += count;
+                    reviewLinks += reader.GetInt32(3);
                     if (lastRefreshedAt is null || refreshedAt > lastRefreshedAt)
                     {
                         lastRefreshedAt = refreshedAt;
@@ -1359,7 +1376,16 @@ app.MapGet("/api/repositories/{id:long}/links", async (
                     COALESCE(source_file.path, source_symbol_file.path) AS source_path,
                     source_symbol.start_line AS source_line,
                     COALESCE(target_file.path, target_symbol_file.path) AS target_path,
-                    target_symbol.start_line AS target_line
+                    target_symbol.start_line AS target_line,
+                    (
+                        link.relation_type = 'references'
+                        AND link.evidence_type = 'text_reference'
+                        AND NOT
+                        (
+                            link.source_type = 'commit'
+                            AND source_commit.message ~* '^[[:space:]]*Merge pull request #[1-9][0-9]*'
+                        )
+                    ) AS requires_review
                 FROM knowledge.entity_links AS link
                 LEFT JOIN github.issues AS source_issue
                     ON link.source_type = 'issue' AND source_issue.id = link.source_id
@@ -1401,7 +1427,8 @@ app.MapGet("/api/repositories/{id:long}/links", async (
                     target_type, target_id, target_label, target_url,
                     relation_type, evidence_type, evidence_text, refreshed_at,
                     COUNT(*) OVER () AS matched_count,
-                    source_path, source_line, target_path, target_line
+                    source_path, source_line, target_path, target_line,
+                    requires_review
                 FROM resolved
                 WHERE (CAST(@relation AS text) IS NULL OR relation_type = @relation)
                   AND (CAST(@evidence AS text) IS NULL OR evidence_type = @evidence)
@@ -1467,7 +1494,8 @@ app.MapGet("/api/repositories/{id:long}/links", async (
                         reader.IsDBNull(14) ? null : reader.GetString(14),
                         reader.IsDBNull(15) ? null : reader.GetInt32(15),
                         reader.IsDBNull(16) ? null : reader.GetString(16),
-                        reader.IsDBNull(17) ? null : reader.GetInt32(17)));
+                        reader.IsDBNull(17) ? null : reader.GetInt32(17),
+                        reader.GetBoolean(18)));
                 }
             }
 
@@ -1479,6 +1507,7 @@ app.MapGet("/api/repositories/{id:long}/links", async (
                 normalizedPageSize,
                 matchedLinks == 0 ? 0 : (int)Math.Ceiling(matchedLinks / (double)normalizedPageSize),
                 lastRefreshedAt,
+                reviewLinks,
                 facets,
                 links));
         }
@@ -2232,6 +2261,7 @@ internal sealed record KnowledgeLinkCatalogDto(
     int PageSize,
     int TotalPages,
     DateTime? LastRefreshedAt,
+    int ReviewLinks,
     IReadOnlyList<KnowledgeLinkFacetDto> Facets,
     IReadOnlyList<KnowledgeLinkDto> Links);
 
@@ -2254,7 +2284,8 @@ internal sealed record KnowledgeLinkDto(
     string? SourcePath,
     int? SourceLine,
     string? TargetPath,
-    int? TargetLine);
+    int? TargetLine,
+    bool RequiresReview);
 
 internal sealed record RepositoryVerificationDto(
     DateTime CheckedAt,

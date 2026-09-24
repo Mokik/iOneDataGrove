@@ -23,6 +23,7 @@ type KnowledgeLink = {
   sourceLine: number | null;
   targetPath: string | null;
   targetLine: number | null;
+  requiresReview: boolean;
 };
 type LinkCatalog = {
   repositoryId: number;
@@ -32,6 +33,7 @@ type LinkCatalog = {
   pageSize: number;
   totalPages: number;
   lastRefreshedAt: string | null;
+  reviewLinks: number;
   facets: LinkFacet[];
   links: KnowledgeLink[];
 };
@@ -55,6 +57,24 @@ const entityLabels: Record<string, string> = {
   repository_file: "File",
   code_symbol: "Simbolo C#",
 };
+const relationMetrics = [
+  { key: "closes", label: "Chiusure", description: "Issue chiuse esplicitamente" },
+  { key: "references", label: "Riferimenti", description: "Citazioni testuali senza chiusura" },
+  { key: "contains_commit", label: "Commit nelle PR", description: "Commit collegati alle pull request" },
+  { key: "modifies_file", label: "File modificati", description: "Modifiche rilevate da GitHub" },
+  { key: "declares_symbol", label: "Simboli C#", description: "Dichiarazioni nell’indice strutturale" },
+] as const;
+
+function facetCount(catalog: LinkCatalog, relationType: string) {
+  return catalog.facets.find(facet => facet.relationType === relationType)?.count ?? 0;
+}
+
+function percentageLabel(count: number, total: number) {
+  if (total === 0 || count === 0) return "0%";
+  const percentage = (count / total) * 100;
+  return percentage < 0.1 ? "<0,1%" : `${numberFormatter.format(Math.round(percentage * 10) / 10)}%`;
+}
+
 
 export function KnowledgeLinksExplorer({ repositoryId, focus, path }: { repositoryId: number; focus: EntityFocus | null; path: string | null }) {
   const [catalog, setCatalog] = useState<LinkCatalog | null>(null);
@@ -137,6 +157,30 @@ export function KnowledgeLinksExplorer({ repositoryId, focus, path }: { reposito
     </div>}
     {!error && loading && <div className="source-symbol-message"><span className="source-loader" /><span>Caricamento dei collegamenti…</span></div>}
     {!error && !loading && catalog && <>
+      <div className="knowledge-quality-metrics" aria-label="Indicatori del knowledge layer">
+        {relationMetrics.map(metric => {
+          const count = facetCount(catalog, metric.key);
+          return <button
+            type="button"
+            key={metric.key}
+            className={relation === metric.key ? "active" : ""}
+            onClick={() => { setRelation(metric.key); setPage(1); }}
+          >
+            <span>{metric.label}</span>
+            <strong>{numberFormatter.format(count)}</strong>
+            <small>{percentageLabel(count, catalog.totalLinks)} · {metric.description}</small>
+          </button>;
+        })}
+      </div>
+
+      {catalog.reviewLinks > 0 && <div className="knowledge-quality-notice" role="note">
+        <div>
+          <strong>{numberFormatter.format(catalog.reviewLinks)} riferimenti testuali da verificare</strong>
+          <span>I riferimenti standard dei merge commit sono già confermati e non compaiono in questo conteggio.</span>
+        </div>
+        <button type="button" onClick={() => { setRelation("references"); setEvidence("text_reference"); setPage(1); }}>Mostra riferimenti</button>
+      </div>}
+
       <div className="knowledge-link-toolbar">
         <div className="knowledge-link-facets">
           <button type="button" className={relation === "all" ? "active" : ""} onClick={() => { setRelation("all"); setPage(1); }}>
@@ -171,15 +215,20 @@ export function KnowledgeLinksExplorer({ repositoryId, focus, path }: { reposito
       </div>
 
       <div className="knowledge-link-list">
-        {catalog.links.map(link => <article className="knowledge-link-row" key={link.id}>
-          <EntityLink type={link.sourceType} id={link.sourceId} label={link.sourceLabel} url={link.sourceUrl} path={link.sourcePath} line={link.sourceLine} />
-          <div className={`knowledge-relation relation-${link.relationType}`}><span>→</span><strong>{relationLabels[link.relationType] ?? link.relationType}</strong></div>
-          <EntityLink type={link.targetType} id={link.targetId} label={link.targetLabel} url={link.targetUrl} path={link.targetPath} line={link.targetLine} />
-          <div className="knowledge-evidence">
-            <span>{link.evidenceType === "text_reference" ? "Riferimento nel testo" : link.evidenceType === "structural_index" ? "Indice C#" : "GitHub"}</span>
-            {link.evidenceText && <small>“{link.evidenceText}”</small>}
-          </div>
-        </article>)}
+        {catalog.links.map(link => {
+          const ambiguous = link.requiresReview;
+          return <article className={`knowledge-link-row${ambiguous ? " is-ambiguous" : ""}`} key={link.id}>
+            <EntityLink type={link.sourceType} id={link.sourceId} label={link.sourceLabel} url={link.sourceUrl} path={link.sourcePath} line={link.sourceLine} />
+            <div className={`knowledge-relation relation-${link.relationType}`}><span>→</span><strong>{relationLabels[link.relationType] ?? link.relationType}</strong></div>
+            <EntityLink type={link.targetType} id={link.targetId} label={link.targetLabel} url={link.targetUrl} path={link.targetPath} line={link.targetLine} />
+            <div className="knowledge-evidence">
+              <span>{link.evidenceType === "text_reference" ? "Riferimento nel testo" : link.evidenceType === "structural_index" ? "Indice C#" : "GitHub"}</span>
+              {ambiguous && <em className="knowledge-review-badge">Da verificare</em>}
+              {link.evidenceText && <small>“{link.evidenceText}”</small>}
+              {ambiguous && <small className="knowledge-review-help">La frase cita l’elemento senza indicare esplicitamente che lo chiude.</small>}
+            </div>
+          </article>;
+        })}
         {catalog.links.length === 0 && <div className="source-symbol-message"><span>Nessun collegamento corrisponde ai filtri selezionati.</span></div>}
       </div>
       {catalog.totalPages > 1 && <nav className="knowledge-pagination" aria-label="Pagine dei collegamenti">
