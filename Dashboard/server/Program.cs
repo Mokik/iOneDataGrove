@@ -69,6 +69,7 @@ app.MapGet("/api/dashboard", async (IOneDataGroveDbContext db, CancellationToken
         var repositoryFileRecordCount = await db.RepositoryFiles.AsNoTracking().CountAsync(ct);
         var activeSourceFileCount = await db.RepositoryFiles.AsNoTracking()
             .CountAsync(item => !item.IsDeleted, ct);
+        var contentChunkCount = await CountContentChunksAsync(db, ct);
 
         var latestRepositorySync = await db.Repositories.AsNoTracking()
             .MaxAsync(item => (DateTime?)item.SyncedAt, ct);
@@ -258,7 +259,8 @@ app.MapGet("/api/dashboard", async (IOneDataGroveDbContext db, CancellationToken
                 mergedPullRequestCount,
                 commitCount,
                 pullRequestFileCount + commitFileCount,
-                activeSourceFileCount),
+                activeSourceFileCount,
+                contentChunkCount),
             syncOverview,
             knowledgeQuality,
             repositories,
@@ -1559,6 +1561,199 @@ app.MapGet("/api/repositories/{id:long}/source/symbols", async (
     }
 });
 
+app.MapGet("/api/repositories/{id:long}/chunks", async (
+    long id,
+    string? q,
+    string? sourceType,
+    int? page,
+    int? pageSize,
+    IOneDataGroveDbContext db,
+    CancellationToken ct) =>
+{
+    try
+    {
+        if (!await db.Repositories.AsNoTracking().AnyAsync(item => item.Id == id, ct))
+            return Results.NotFound(new { message = "Repository non trovato." });
+
+        var normalizedQuery = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
+        var normalizedType = string.IsNullOrWhiteSpace(sourceType) ||
+            sourceType.Equals("all", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : sourceType.Trim().ToLowerInvariant();
+        var allowedTypes = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "issue", "issue_comment", "pull_request", "commit",
+            "repository_file", "code_symbol"
+        };
+        if (normalizedType is not null && !allowedTypes.Contains(normalizedType))
+            return Results.BadRequest(new { message = "Tipo di fonte non valido." });
+
+        var currentPage = Math.Max(1, page ?? 1);
+        var currentPageSize = Math.Clamp(pageSize ?? 30, 1, 50);
+        var offset = (currentPage - 1) * currentPageSize;
+        var chunks = new List<ContentChunkDto>();
+        var facets = new List<ContentChunkFacetDto>();
+        var totalChunks = 0;
+        var totalSources = 0;
+        long totalCharacters = 0;
+        long estimatedTokens = 0;
+        var matchedChunks = 0;
+
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            await using (var summaryCommand = db.Database.GetDbConnection().CreateCommand())
+            {
+                summaryCommand.CommandText = """
+                    SELECT
+                        COUNT(*)::integer,
+                        COUNT(DISTINCT chunk_source_id)::integer,
+                        COALESCE(SUM(character_count), 0)::bigint,
+                        COALESCE(SUM(estimated_tokens), 0)::bigint
+                    FROM knowledge.content_chunks
+                    WHERE repository_id = @repository_id;
+                    """;
+                AddDbParameter(summaryCommand, "repository_id", id);
+                await using var summaryReader = await summaryCommand.ExecuteReaderAsync(ct);
+                if (await summaryReader.ReadAsync(ct))
+                {
+                    totalChunks = summaryReader.GetInt32(0);
+                    totalSources = summaryReader.GetInt32(1);
+                    totalCharacters = summaryReader.GetInt64(2);
+                    estimatedTokens = summaryReader.GetInt64(3);
+                }
+            }
+
+            await using (var facetCommand = db.Database.GetDbConnection().CreateCommand())
+            {
+                facetCommand.CommandText = """
+                    SELECT source.source_type, COUNT(*)::integer
+                    FROM knowledge.content_chunks AS chunk
+                    INNER JOIN knowledge.chunk_sources AS source
+                        ON source.id = chunk.chunk_source_id
+                    WHERE chunk.repository_id = @repository_id
+                    GROUP BY source.source_type
+                    ORDER BY source.source_type;
+                    """;
+                AddDbParameter(facetCommand, "repository_id", id);
+                await using var facetReader = await facetCommand.ExecuteReaderAsync(ct);
+                while (await facetReader.ReadAsync(ct))
+                {
+                    facets.Add(new ContentChunkFacetDto(
+                        facetReader.GetString(0),
+                        facetReader.GetInt32(1)));
+                }
+            }
+
+            await using var command = db.Database.GetDbConnection().CreateCommand();
+            command.CommandText = """
+                WITH search_query AS
+                (
+                    SELECT CASE
+                        WHEN CAST(@query AS text) IS NULL THEN NULL
+                        ELSE websearch_to_tsquery('simple', @query)
+                    END AS value
+                ),
+                filtered AS
+                (
+                    SELECT
+                        chunk.id,
+                        source.source_type,
+                        source.source_entity_id,
+                        source.title,
+                        source.source_path,
+                        COALESCE(chunk.start_line, source.start_line) AS start_line,
+                        COALESCE(chunk.end_line, source.end_line) AS end_line,
+                        source.html_url,
+                        chunk.ordinal,
+                        chunk.content,
+                        chunk.character_count,
+                        chunk.estimated_tokens,
+                        chunk.indexed_at,
+                        CASE
+                            WHEN search_query.value IS NULL THEN 0::double precision
+                            ELSE ts_rank_cd(
+                                to_tsvector('simple', chunk.content),
+                                search_query.value,
+                                32
+                            )::double precision
+                        END AS relevance
+                    FROM knowledge.content_chunks AS chunk
+                    INNER JOIN knowledge.chunk_sources AS source
+                        ON source.id = chunk.chunk_source_id
+                    CROSS JOIN search_query
+                    WHERE chunk.repository_id = @repository_id
+                      AND (CAST(@source_type AS text) IS NULL OR source.source_type = @source_type)
+                      AND
+                      (
+                          search_query.value IS NULL OR
+                          to_tsvector('simple', chunk.content) @@ search_query.value OR
+                          source.title ILIKE '%' || @query || '%' OR
+                          COALESCE(source.source_path, '') ILIKE '%' || @query || '%'
+                      )
+                )
+                SELECT
+                    id, source_type, source_entity_id, title, source_path,
+                    start_line, end_line, html_url, ordinal, content,
+                    character_count, estimated_tokens, indexed_at,
+                    COUNT(*) OVER ()::integer
+                FROM filtered
+                ORDER BY relevance DESC, source_type, title, ordinal
+                LIMIT @page_size OFFSET @offset;
+                """;
+            AddDbParameter(command, "repository_id", id);
+            AddDbParameter(command, "query", normalizedQuery);
+            AddDbParameter(command, "source_type", normalizedType);
+            AddDbParameter(command, "page_size", currentPageSize);
+            AddDbParameter(command, "offset", offset);
+
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                matchedChunks = reader.GetInt32(13);
+                chunks.Add(new ContentChunkDto(
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.GetInt64(2),
+                    reader.GetString(3),
+                    reader.IsDBNull(4) ? null : reader.GetString(4),
+                    reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                    reader.IsDBNull(6) ? null : reader.GetInt32(6),
+                    reader.IsDBNull(7) ? null : reader.GetString(7),
+                    reader.GetInt32(8),
+                    reader.GetString(9),
+                    reader.GetInt32(10),
+                    reader.GetInt32(11),
+                    reader.GetDateTime(12)));
+            }
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
+
+        return Results.Ok(new ContentChunkCatalogDto(
+            id,
+            totalChunks,
+            totalSources,
+            totalCharacters,
+            estimatedTokens,
+            matchedChunks,
+            currentPage,
+            currentPageSize,
+            matchedChunks == 0 ? 0 : (int)Math.Ceiling(matchedChunks / (double)currentPageSize),
+            facets,
+            chunks));
+    }
+    catch (Exception exception)
+    {
+        app.Logger.LogError(exception, "Errore durante la lettura dei chunk del repository {RepositoryId}.", id);
+        return Results.Problem(
+            title: "Chunk non disponibili",
+            detail: "La dashboard non riesce a leggere i chunk con provenienza. Verificare che lo script 007 sia stato applicato.",
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+});
 app.MapGet("/api/repositories/{id:long}/commits/{commitId:long}/files", async (
     long id, long commitId, IOneDataGroveDbContext db, CancellationToken ct) =>
 {
@@ -2316,6 +2511,23 @@ static void AddDbParameter(System.Data.Common.DbCommand command, string name, ob
     command.Parameters.Add(parameter);
 }
 
+static async Task<int> CountContentChunksAsync(
+    IOneDataGroveDbContext db,
+    CancellationToken cancellationToken)
+{
+    await db.Database.OpenConnectionAsync(cancellationToken);
+    try
+    {
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "SELECT COUNT(*)::integer FROM knowledge.content_chunks;";
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
+    }
+    finally
+    {
+        await db.Database.CloseConnectionAsync();
+    }
+}
 static async Task<int> CountStructuralRowsAsync(
     IOneDataGroveDbContext db,
     long repositoryId,
@@ -2345,6 +2557,35 @@ static IResult ImportInProgressResult() => Results.Conflict(new
 
 app.Run();
 
+internal sealed record ContentChunkCatalogDto(
+    long RepositoryId,
+    int TotalChunks,
+    int TotalSources,
+    long TotalCharacters,
+    long EstimatedTokens,
+    int MatchedChunks,
+    int Page,
+    int PageSize,
+    int TotalPages,
+    IReadOnlyList<ContentChunkFacetDto> Facets,
+    IReadOnlyList<ContentChunkDto> Chunks);
+
+internal sealed record ContentChunkFacetDto(string SourceType, int Count);
+
+internal sealed record ContentChunkDto(
+    long Id,
+    string SourceType,
+    long SourceEntityId,
+    string Title,
+    string? SourcePath,
+    int? StartLine,
+    int? EndLine,
+    string? HtmlUrl,
+    int Ordinal,
+    string Content,
+    int CharacterCount,
+    int EstimatedTokens,
+    DateTime IndexedAt);
 internal sealed record GlobalSearchCatalogDto(
     string Query,
     long? RepositoryId,
@@ -2394,7 +2635,8 @@ internal sealed record TotalsDto(
     int MergedPullRequests,
     int Commits,
     int ChangedFileRecords,
-    int SourceFiles);
+    int SourceFiles,
+    int ContentChunks);
 
 internal sealed record SyncOverviewDto(
     int TrackedResources,

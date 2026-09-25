@@ -40,3 +40,19 @@ dotnet run --project .\iOneDataGrove\src\iOneDataGrove.Importer\iOneDataGrove.Im
 cd C:\Progetti\iOneDataGrove
 dotnet run --project .\iOneDataGrove\src\iOneDataGrove.Importer\iOneDataGrove.Importer.csproj -- --Import:Repository iOneSolutionsSrl/iOneGavio
 ```
+
+## Generazione locale dei chunk
+
+Genera o aggiorna i chunk di tutti i repository attivi usando i dati già presenti in PostgreSQL, senza chiamare GitHub:
+
+```powershell
+cd C:\Progetti\iOneDataGrove
+dotnet run --project .\iOneDataGrove\src\iOneDataGrove.Importer\iOneDataGrove.Importer.csproj -- --chunks-only
+```
+
+Per limitare l'operazione a un repository:
+
+```powershell
+cd C:\Progetti\iOneDataGrove
+dotnet run --project .\iOneDataGrove\src\iOneDataGrove.Importer\iOneDataGrove.Importer.csproj -- --chunks-only --Import:Repository iOneSolutionsSrl/iOneGavio
+```

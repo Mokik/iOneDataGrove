@@ -1,6 +1,16 @@
 # iOneDataGrove — stato del progetto e passaggio consegne
 
 > Aggiornato al 24 settembre 2026. Questo documento serve come contesto iniziale per continuare il lavoro in una nuova chat.
+## Aggiornamento 24 settembre: chunk con provenienza
+
+- Aggiunto lo script `007_content_chunks.sql`, applicato al PostgreSQL locale. Le tabelle `knowledge.chunk_sources` e `knowledge.content_chunks` conservano tipo e ID della fonte, versione, hash, percorso, intervallo di righe, testo del chunk e stima dei token.
+- L'importatore genera i chunk dopo codice, simboli e collegamenti. L'elaborazione è incrementale: una seconda importazione di `iOneGavio` ha riconosciuto **55.060 fonti invariate**, scritto **0 chunk** e mantenuto invariato il totale.
+- I testi sono suddivisi con sovrapposizione; per file e simboli C# sono conservati gli intervalli di riga. Sono gestiti file sorgente, simboli, issue, commenti, pull request e commit.
+- La dashboard espone una scheda **Chunk** nel Repository Explorer, con riepilogo del volume, filtri per provenienza, ricerca full-text, paginazione e apertura diretta della fonte locale o GitHub.
+- Prova reale completata su `iOneSolutionsSrl/iOneGavio`: **66.875 chunk**, **55.060 fonti**, **91.819.261 caratteri** e circa **22.980.467 token**. La ricerca `ParticolareImportRete` restituisce 15 chunk e il salto al file `IOne.Domain/Helpers/OrdiniHelper.cs`, riga 2579, è stato verificato nel browser.
+- Il test ripetibile `Dashboard/tests/content-chunks-api.test.mjs` verifica conteggi, filtri, ricerca e provenienza. Si esegue con `CONTENT_CHUNKS_TEST_API=http://127.0.0.1:5088/api` e `npm run test:chunks`.
+- Verifiche: **27/27** test importatore, **2/2** test API chunk, build API, TypeScript ed ESLint superati.
+- È disponibile la modalità locale `--chunks-only`, che usa soltanto PostgreSQL e non effettua chiamate GitHub. Durante le verifiche sono stati creati **184.803 chunk** per 11 repository, tutti con stato riuscito; il backfill degli altri repository attivi può essere eseguito con lo stesso comando senza filtro.
 
 ## Aggiornamento 24 settembre: ambiente locale completo e importazione consolidata
 
@@ -9,8 +19,8 @@
 - PostgreSQL 17 è installato localmente e il database operativo è `ionedatagrove`.
 - L'utenza applicativa `ionedatagrove_app` è configurata; le credenziali restano nei .NET User Secrets condivisi da importatore e dashboard e non sono salvate nel repository.
 - La dashboard è stata verificata su `http://localhost:3000` con API locale su `http://127.0.0.1:5088`.
-- La dashboard riporta **1.047.616 record importati**, **199 repository attivi**, copertura **1.194/1.194 (100%)**, **0 errori correnti** e **0 sincronizzazioni attive**.
-- Tutti i sei tipi di risorsa (`issues`, `pull_requests`, `commits`, `repository_files`, `code_symbols`, `knowledge_links`) risultano completati per tutti i 199 repository. Non risultano stati di sincronizzazione incompleti.
+- La dashboard riporta **1.048.056 record importati**, **200 repository attivi**, copertura **1.211/1.211 (100%)**, **0 errori correnti** e **0 sincronizzazioni attive**.
+- Tutti i sei tipi di risorsa (`issues`, `pull_requests`, `commits`, `repository_files`, `code_symbols`, `knowledge_links`) risultano completati per tutti i 200 repository. Non risultano stati di sincronizzazione incompleti.
 
 ### Affidabilità dell'importatore
 
@@ -20,7 +30,7 @@
 - Prima del salvataggio, stringhe e JSON vengono normalizzati per PostgreSQL. I caratteri NUL semantici provenienti dai dati GitHub sono sostituiti con U+FFFD, mentre le sequenze letterali `\\u0000` restano inalterate.
 - I messaggi di errore di sincronizzazione includono ora le cause interne delle eccezioni EF Core/PostgreSQL.
 - Verificati con successo casi reali di repository e pull request molto grandi, fra cui `Iportal` (PR da 6.894 file) e `PortaleGestoriGiap` (PR da 4.563 file). Completati inoltre i recuperi di `iOneCostantin`, `IOneAssetIp`, `iOneAt`, `iOneRetitalia`, `iOneSpeedy` e `IOneTotalLube`.
-- Test dell'importatore: **23/23 superati** in configurazione Release.
+- Test dell'importatore: **27/27 superati** in configurazione Release.
 
 ### Qualità del knowledge layer
 
@@ -124,7 +134,7 @@ C:\Progetti\iOneDataGrove
 │   ├── tests                       # test dashboard
 │   └── Avvia-Dashboard.ps1
 ├── iOneDataGrove
-│   ├── database                    # script SQL evolutivi 001-005
+│   ├── database                    # script SQL evolutivi 001-007
 │   ├── src
 │   │   ├── iOneDataGrove.Importer
 │   │   └── iOneDataGrove.Persistence
@@ -208,6 +218,7 @@ Gli script evolutivi si trovano in `iOneDataGrove\database`:
 4. `004_csharp_structural_index.sql` — struttura C#;
 5. `005_automatic_knowledge_links.sql` — collegamenti automatici.
 6. `006_global_search_full_text.sql` — indici full-text per la ricerca trasversale.
+7. `007_content_chunks.sql` — chunk testuali con provenienza, righe e indice full-text.
 
 Non inserire token o password nel codice o nella dashboard. Le credenziali sono gestite dalla configurazione locale/user secrets già predisposta.
 
@@ -215,14 +226,14 @@ Non inserire token o password nel codice o nella dashboard. Le credenziali sono 
 
 Il recupero completo terminato il 24 settembre 2026 ha prodotto questo stato:
 
-- repository attivi: **199**;
-- record importati: **1.047.616**;
-- risorse completate: **1.194/1.194 (100%)**;
+- repository attivi: **200**;
+- record importati: **1.048.056**;
+- risorse completate: **1.211/1.211 (100%)**;
 - sincronizzazioni incomplete: **0**;
 - errori correnti: **0**;
 - sincronizzazioni attive: **0**.
 
-Per ognuno dei 199 repository risultano completate issue, pull request, commit del branch principale, file sorgente, simboli e collegamenti. La dashboard e le API locali sono state aperte sui dati reali e verificate dopo il recupero.
+Per ognuno dei 200 repository risultano completate issue, pull request, commit del branch principale, file sorgente, simboli e collegamenti. La dashboard e le API locali sono state aperte sui dati reali e verificate dopo il recupero.
 
 Nota importante: GitHub non aggiorna sempre `issue.updated_at` quando cambia un commento. Per questo l'importatore legge a ogni giro incrementale il catalogo completo delle issue per ottenere conteggi autorevoli, ma aggiorna i contenuti completi soltanto quando necessario. I commenti restano importati incrementalmente e vengono riconciliati con il conteggio corrente.
 
@@ -230,7 +241,7 @@ Nota importante: GitHub non aggiorna sempre `issue.updated_at` quando cambia un 
 
 - importazione completa e recuperi mirati: riusciti senza errori residui;
 - compilazione API dashboard: riuscita con 0 errori e 0 avvisi;
-- test importatore: **23/23 superati** in Release;
+- test importatore: **27/27 superati** in Release;
 - build dashboard: riuscita;
 - test dashboard: **2/2 superati**;
 - test API ricerca trasversale: **3/3 superati** sui dati reali di iOneCostantin, iOneGavio e iOneIpWow;

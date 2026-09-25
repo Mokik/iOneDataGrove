@@ -6,7 +6,7 @@ type Totals = {
   records: number; repositories: number; users: number; issues: number;
   openIssues: number; comments: number; pullRequests: number;
   openPullRequests: number; mergedPullRequests: number; commits: number;
-  changedFileRecords: number; sourceFiles: number;
+  changedFileRecords: number; sourceFiles: number; contentChunks: number;
   activeRepositories: number; pausedRepositories: number; excludedRepositories: number;
 };
 
@@ -87,7 +87,7 @@ function humanizeResource(value: string | null) {
   const labels: Record<string, string> = {
     issues: "Issue e commenti", issue_comments: "Commenti", pull_requests: "Pull request",
     pull_request_files: "File PR", commits: "Commit del branch principale", commit_files: "File commit",
-    repository: "Repository", repository_files: "Codice sorgente", code_symbols: "Struttura C#",
+    repository: "Repository", repository_files: "Codice sorgente", code_symbols: "Struttura C#", content_chunks: "Chunk con provenienza",
   };
   return labels[value] ?? value.replaceAll("_", " ");
 }
@@ -301,7 +301,7 @@ export function DashboardClient() {
     { label: "Record importati", value: data?.totals.records, note: "Tabelle GitHub, inclusi i sorgenti" },
     { label: "Issue", value: data?.totals.issues, note: `${formatNumber(data?.totals.openIssues)} aperte` },
     { label: "Pull request", value: data?.totals.pullRequests, note: `${formatNumber(data?.totals.mergedPullRequests)} unite` },
-    { label: "Codice sorgente", value: data?.totals.sourceFiles, note: "file attivi importati" },
+    { label: "Codice sorgente", value: data?.totals.sourceFiles, note: formatNumber(data?.totals.contentChunks) + " chunk con provenienza" },
   ];
 
   const composition = data ? [

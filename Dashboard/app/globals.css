@@ -711,3 +711,67 @@ a.knowledge-entity:hover { border-color: #819889; background: #f0f5f0; }
   .search-results-heading { align-items: flex-start; flex-direction: column; }
   .global-result-meta time { width: 100%; margin-left: 0; }
 }
+/* Content chunks with provenance */
+.chunk-explorer { border: 1px solid var(--line); background: var(--panel); }
+.chunk-header { min-height: 112px; padding: 24px 26px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.chunk-header h3 { margin: 7px 0 6px; font: 600 23px Georgia, serif; }
+.chunk-header p:not(.section-kicker) { max-width: 680px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.chunk-header-count { padding: 8px 10px; background: #e7efe8; color: #365b40; font-size: 9px; font-weight: 800; white-space: nowrap; }
+.chunk-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.chunk-metrics article { padding: 17px 20px; border-right: 1px solid var(--line); }
+.chunk-metrics article:last-child { border-right: 0; }
+.chunk-metrics span, .chunk-metrics strong, .chunk-metrics small { display: block; }
+.chunk-metrics span { color: #77847c; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.chunk-metrics strong { margin-top: 6px; color: var(--ink); font-size: 20px; }
+.chunk-metrics small { margin-top: 4px; color: #87928b; font-size: 8px; }
+.chunk-toolbar { border-bottom: 1px solid var(--line); background: #f8f9f6; }
+.chunk-type-filters { padding: 12px 18px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px; }
+.chunk-type-filters button { padding: 7px 9px; border: 1px solid #d5dad5; background: #fff; color: #68756d; cursor: pointer; font-size: 8px; }
+.chunk-type-filters button:hover, .chunk-type-filters button[aria-pressed="true"] { border-color: #719079; background: #e7efe8; color: #31573d; }
+.chunk-type-filters strong { margin-left: 5px; color: var(--ink); }
+.chunk-search { padding: 12px 18px; display: flex; gap: 8px; }
+.chunk-search label { flex: 1; }
+.chunk-search input { width: 100%; padding: 10px 11px; border: 1px solid #cfd4cf; background: #fff; color: var(--ink); outline: none; font-size: 9px; }
+.chunk-search input:focus { border-color: #75917b; box-shadow: 0 0 0 2px rgba(57,112,71,.08); }
+.chunk-search button { padding: 10px 13px; border: 1px solid var(--navy); background: var(--navy); color: #fff; cursor: pointer; font-size: 9px; white-space: nowrap; }
+.chunk-search button:disabled { opacity: .6; cursor: wait; }
+.chunk-search button.chunk-clear { border-color: #cfd4cf; background: #fff; color: var(--muted); }
+.chunk-result-summary { min-height: 40px; padding: 9px 18px; border-bottom: 1px solid var(--line); background: #fff; color: #506159; display: flex; align-items: center; justify-content: space-between; gap: 15px; font-size: 8px; }
+.chunk-result-summary small { color: #859087; }
+.chunk-list { background: #f7f8f5; }
+.chunk-row { margin: 16px 18px; border: 1px solid #d9dfda; background: #fff; }
+.chunk-row-heading { padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
+.chunk-row-heading > div { display: flex; align-items: center; gap: 8px; }
+.chunk-row-heading > div small { color: #8c9790; font-size: 8px; }
+.chunk-source-type { padding: 4px 6px; background: #e5ecef; color: #416476; font-size: 7px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.chunk-source-type.type-repository_file, .chunk-source-type.type-code_symbol { background: #dfe9e1; color: #3e6349; }
+.chunk-source-type.type-issue, .chunk-source-type.type-issue_comment { background: #eee9dc; color: #74613c; }
+.chunk-source-type.type-pull_request { background: #e7e5ef; color: #5a5278; }
+.chunk-row-heading > strong { display: block; margin-top: 8px; color: var(--ink); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.chunk-row-heading > code { display: block; margin-top: 6px; color: #738078; font: 8px/1.4 Consolas, monospace; overflow-wrap: anywhere; }
+.chunk-row > pre { max-height: 330px; margin: 0; padding: 17px 18px; overflow: auto; background: #15242f; color: #d7e0e2; font: 10px/1.6 Consolas, "Courier New", monospace; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
+.chunk-row > footer { min-height: 46px; padding: 9px 16px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.chunk-row > footer > span { color: #839087; font-size: 8px; }
+.chunk-row > footer > div { display: flex; gap: 14px; }
+.chunk-row > footer a { color: var(--green-dark); font-size: 8px; font-weight: 800; text-decoration: none; }
+.chunk-row > footer a:last-child { color: #748078; font-weight: 600; }
+.chunk-message { min-height: 230px; padding: 38px; display: grid; place-items: center; align-content: center; gap: 9px; color: var(--muted); text-align: center; }
+.chunk-message strong, .chunk-message span { display: block; }
+.chunk-message strong { color: var(--ink); font: 600 18px Georgia, serif; }
+.chunk-message span:not(.source-loader) { max-width: 540px; font-size: 10px; line-height: 1.5; }
+.chunk-message.chunk-error { min-height: 150px; background: #fff3ef; color: #934832; }
+.chunk-message.chunk-error strong { color: #934832; }
+.chunk-pagination { min-height: 54px; padding: 9px 18px; border-top: 1px solid var(--line); background: #f8f9f6; display: flex; align-items: center; justify-content: center; gap: 18px; }
+.chunk-pagination span { color: #6f7c74; font-size: 8px; }
+.chunk-pagination button { padding: 8px 11px; border: 1px solid #cfd6d0; background: #fff; color: #42594a; cursor: pointer; font-size: 8px; }
+.chunk-pagination button:disabled { opacity: .45; cursor: default; }
+
+@media (max-width: 700px) {
+  .chunk-header { align-items: flex-start; flex-direction: column; }
+  .chunk-metrics { grid-template-columns: repeat(2, 1fr); }
+  .chunk-metrics article:nth-child(2) { border-right: 0; }
+  .chunk-metrics article:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  .chunk-search { align-items: stretch; flex-direction: column; }
+  .chunk-row { margin: 12px; }
+  .chunk-row > footer { align-items: flex-start; flex-direction: column; }
+}

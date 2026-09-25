@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import Link from "next/link";
 import { SourceCodeExplorer } from "./SourceCodeExplorer";
 import { KnowledgeLinksExplorer } from "./KnowledgeLinksExplorer";
+import { ContentChunksExplorer } from "./ContentChunksExplorer";
 
 import { linksHref, sourceHref, subscribeNavigation, readNavigation, emptyNavigation } from "./explorer-navigation";
 
-type Tab = "overview" | "source" | "links" | "issues" | "pulls" | "commits" | "files";
+type Tab = "overview" | "source" | "chunks" | "links" | "issues" | "pulls" | "commits" | "files";
 type StateFilter = "all" | "open" | "closed" | "merged";
 
 type RepositoryDetail = {
@@ -34,14 +35,14 @@ const numberFormatter = new Intl.NumberFormat("it-IT");
 const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const formatDate = (value: string | null | undefined) => value ? dateFormatter.format(new Date(value)) : "—";
 const formatNumber = (value: number | null | undefined) => value == null ? "—" : numberFormatter.format(value);
-const resourceLabel = (value: string) => ({ issues: "Issue e commenti", pull_requests: "Pull request", commits: "Commit del branch principale", repository_files: "Codice sorgente", code_symbols: "Struttura C#", knowledge_links: "Collegamenti automatici" }[value] ?? value.replaceAll("_", " "));
+const resourceLabel = (value: string) => ({ issues: "Issue e commenti", pull_requests: "Pull request", commits: "Commit del branch principale", repository_files: "Codice sorgente", code_symbols: "Struttura C#", knowledge_links: "Collegamenti automatici", content_chunks: "Chunk con provenienza" }[value] ?? value.replaceAll("_", " "));
 
 export function RepositoryExplorerClient({ repositoryId }: { repositoryId: number }) {
   const [data, setData] = useState<ExplorerData | null>(null);
   const navigation = useSyncExternalStore(subscribeNavigation, readNavigation, emptyNavigation);
   const parameters = new URLSearchParams(navigation);
   const requestedTab = parameters.get("tab");
-  const tab = (["overview", "source", "links", "issues", "pulls", "commits", "files"].includes(requestedTab ?? "") ? requestedTab : "overview") as Tab;
+  const tab = (["overview", "source", "chunks", "links", "issues", "pulls", "commits", "files"].includes(requestedTab ?? "") ? requestedTab : "overview") as Tab;
   const focusId = Number(parameters.get("focusId"));
   const focus = parameters.get("focusType") && Number.isSafeInteger(focusId) && focusId > 0
     ? { type: parameters.get("focusType")!, id: focusId, label: parameters.get("label") ?? "Elemento selezionato" } : null;
@@ -130,6 +131,7 @@ export function RepositoryExplorerClient({ repositoryId }: { repositoryId: numbe
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "overview", label: "Panoramica" },
     { id: "source", label: "Codice", count: data?.resultCounts.sourceFiles },
+    { id: "chunks", label: "Chunk" },
     { id: "links", label: "Collegamenti" },
     { id: "issues", label: "Issue", count: data?.resultCounts.issues },
     { id: "pulls", label: "Pull request", count: data?.resultCounts.pullRequests },
@@ -169,7 +171,7 @@ export function RepositoryExplorerClient({ repositoryId }: { repositoryId: numbe
             <div className="repo-sync"><span className={data?.syncStates.some(item => item.status === "failed") ? "sync-light danger" : "sync-light"} /><div><small>Ultima lettura dati</small><strong>{formatDate(repository?.syncedAt)}</strong></div></div>
           </section>
 
-          {tab !== "source" && tab !== "links" && <>
+          {tab !== "source" && tab !== "chunks" && tab !== "links" && <>
             <form className="explorer-search" onSubmit={submitSearch}>
               <label><span className="sr-only">Cerca nei dati del repository</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Cerca titolo, autore, SHA o percorso file…" /></label>
               <button type="submit" disabled={loading}>{loading ? "Lettura…" : "Cerca"}</button>
@@ -208,6 +210,7 @@ export function RepositoryExplorerClient({ repositoryId }: { repositoryId: numbe
           </>}
 
           {tab === "source" && <SourceCodeExplorer key={`${repositoryId}-${navigation}`} repositoryId={repositoryId} initialPath={sourcePath} initialLine={sourceLine} />}
+          {tab === "chunks" && <ContentChunksExplorer key={repositoryId} repositoryId={repositoryId} />}
           {tab === "links" && <KnowledgeLinksExplorer key={`${repositoryId}-${navigation}`} repositoryId={repositoryId} focus={focus} path={sourcePath} initialRelation={initialLinkRelation} initialReviewOnly={initialReviewOnly} />}
           {tab === "issues" && <DataPanel title="Issue importate" shown={data?.issues.length ?? 0} total={data?.resultCounts.issues ?? 0}>{<IssueTable items={data?.issues ?? []} />}</DataPanel>}
           {tab === "pulls" && <DataPanel title="Pull request importate" shown={data?.pullRequests.length ?? 0} total={data?.resultCounts.pullRequests ?? 0}>{<PullTable items={data?.pullRequests ?? []} />}</DataPanel>}

@@ -23,6 +23,8 @@ internal static class ImporterApplication
 
         var connectionString = builder.Configuration.GetConnectionString("iOneDataGrove");
         var githubToken = builder.Configuration["GitHub:Token"];
+        var chunksOnly = builder.Configuration.GetValue<bool>("Import:ChunksOnly") ||
+            args.Any(argument => string.Equals(argument, "--chunks-only", StringComparison.OrdinalIgnoreCase));
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -91,7 +93,14 @@ internal static class ImporterApplication
 
         var forceFull = args.Any(argument =>
             string.Equals(argument, "--full", StringComparison.OrdinalIgnoreCase));
-        var selectedRepository = builder.Configuration["Import:Repository"];
+        var selectedRepository = builder.Configuration["Import:Repository"] ??
+            ReadArgumentValue(args, "--Import:Repository");
+        if (chunksOnly)
+        {
+            return await IndexExistingChunksAsync(
+                dbContext, selectedRepository, forceFull, cancellationToken);
+        }
+
         var commitsOnly = builder.Configuration.GetValue<bool>("Import:CommitsOnly");
         if (commitsOnly)
         {
@@ -228,6 +237,60 @@ internal static class ImporterApplication
         return 1;
     }
 
+    private static async Task<int> IndexExistingChunksAsync(
+        IOneDataGroveDbContext dbContext,
+        string? selectedRepository,
+        bool forceFull,
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.Repositories.AsNoTracking()
+            .Where(repository => repository.IsSyncEnabled && !repository.IsExcluded);
+        if (!string.IsNullOrWhiteSpace(selectedRepository))
+        {
+            query = query.Where(repository => repository.FullName == selectedRepository);
+        }
+
+        var repositories = await query
+            .OrderBy(repository => repository.FullName)
+            .Select(repository => new { repository.Id, repository.FullName })
+            .ToListAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(selectedRepository) && repositories.Count == 0)
+        {
+            throw new ArgumentException(
+                "Il repository richiesto non è presente, è sospeso oppure è escluso dal database locale.");
+        }
+
+        Console.WriteLine(
+            $"Generazione chunk locale: repository={repositories.Count}, " +
+            $"modalità={(forceFull ? "full" : "incrementale")}. Nessuna chiamata GitHub.");
+        var failures = new List<string>();
+        for (var index = 0; index < repositories.Count; index++)
+        {
+            var repository = repositories[index];
+            Console.WriteLine();
+            Console.WriteLine(
+                $"[{index + 1}/{repositories.Count}] Chunk {repository.FullName}");
+            await IndexContentChunksAsync(
+                dbContext,
+                repository.FullName,
+                repository.Id,
+                forceFull,
+                failures,
+                cancellationToken);
+            dbContext.ChangeTracker.Clear();
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(
+            $"Generazione chunk terminata: repository={repositories.Count}, " +
+            $"errori={failures.Count}.");
+        if (failures.Count == 0) return 0;
+
+        Console.Error.WriteLine("Dettaglio errori:");
+        foreach (var failure in failures) Console.Error.WriteLine($"- {failure}");
+        return 1;
+    }
+
     private static async Task ImportRepositoryAsync(
         IOneDataGroveDbContext dbContext,
         string githubToken,
@@ -310,6 +373,102 @@ internal static class ImporterApplication
             forceFull,
             failures,
             cancellationToken);
+
+        if (sourceImportCompleted)
+        {
+            await IndexContentChunksAsync(
+                dbContext,
+                repository.FullName,
+                result.RepositoryId,
+                forceFull,
+                failures,
+                cancellationToken);
+        }
+        else
+        {
+            Console.Error.WriteLine(
+                $"Chunk di {repository.FullName} non eseguiti: " +
+                "la sincronizzazione del codice sorgente non è riuscita.");
+        }
+    }
+
+    private static async Task IndexContentChunksAsync(
+        IOneDataGroveDbContext dbContext,
+        string repositoryFullName,
+        long repositoryId,
+        bool forceFull,
+        ICollection<string> failures,
+        CancellationToken cancellationToken)
+    {
+        var syncTracker = new IngestionSyncTracker(dbContext);
+        SyncExecution? execution = null;
+
+        try
+        {
+            execution = await syncTracker.StartAsync(
+                repositoryId,
+                "content_chunks",
+                forceFull,
+                cancellationToken);
+            var result = await new ContentChunkIndexer(dbContext).IndexAsync(
+                repositoryId,
+                forceFull,
+                cancellationToken);
+
+            await syncTracker.CompleteAsync(
+                execution,
+                new SyncMetrics(
+                    result.Sources,
+                    result.WrittenChunks,
+                    result.IndexedSources + result.RemovedSources,
+                    JsonSerializer.Serialize(new
+                    {
+                        result.IndexedSources,
+                        result.UnchangedSources,
+                        result.RemovedSources,
+                        result.TotalChunks,
+                        ChunkerVersion = ContentChunkIndexer.ChunkerVersion
+                    })),
+                cancellationToken);
+
+            Console.WriteLine(
+                $"Chunk con provenienza: fonti={result.Sources}, " +
+                $"aggiornate={result.IndexedSources}, invariate={result.UnchangedSources}, " +
+                $"rimosse={result.RemovedSources}, scritti={result.WrittenChunks}, " +
+                $"totali={result.TotalChunks}.");
+        }
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
+        {
+            if (execution is not null)
+            {
+                await syncTracker.FailAsync(execution, exception);
+            }
+            else
+            {
+                dbContext.ChangeTracker.Clear();
+            }
+
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (execution is not null)
+            {
+                await syncTracker.FailAsync(execution, exception);
+            }
+            else
+            {
+                dbContext.ChangeTracker.Clear();
+            }
+
+            failures.Add(
+                $"{repositoryFullName}: content_chunks - " +
+                IngestionSyncTracker.FormatException(exception));
+            Console.Error.WriteLine(
+                $"Chunk di {repositoryFullName} non indicizzati: " +
+                $"{IngestionSyncTracker.FormatException(exception)}. " +
+                "Verificare che lo script 007 sia stato applicato.");
+        }
     }
 
     private static async Task IndexKnowledgeLinksAsync(
@@ -756,5 +915,25 @@ internal static class ImporterApplication
             Console.Error.WriteLine(
                 $"Pull request di {repository.FullName} non sincronizzate: {IngestionSyncTracker.FormatException(exception)}");
         }
+    }
+
+    private static string? ReadArgumentValue(string[] args, string option)
+    {
+        for (var index = 0; index < args.Length; index++)
+        {
+            if (string.Equals(args[index], option, StringComparison.OrdinalIgnoreCase) &&
+                index + 1 < args.Length)
+            {
+                return args[index + 1];
+            }
+
+            var prefix = option + "=";
+            if (args[index].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return args[index][prefix.Length..];
+            }
+        }
+
+        return null;
     }
 }
